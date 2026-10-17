@@ -15,7 +15,8 @@ AI 写场景 JSON → three.js 播放 → Blender 插件导入、手调、实时
 - `skills/abt-scene/`：skill，规范只在这里存一份
 - `.claude-plugin/`：仓库根目录同时是 Claude Code 插件市场和插件，改完运行 `claude plugin validate .`
 - `PROMPT.md`：给聊天 AI 的提示词，由 `<skill>/scripts/make_prompt.py` 生成，新增组件后要重新生成
-- 打包：`python tools/package.py` → `dist/abt-<版本>.zip`（Blender 插件）、`dist/abt-scene-skill.zip`（含 `frame-library/`）、`dist/frame-library/`（FRAME 素材库 abt）
+- 打包：`python tools/package.py` → `dist/abt-<版本>.zip`（Blender 插件）、`dist/abt-scene-skill.zip`（含 `frame-install.json`）、`dist/frame-install.json`（FRAME 的 AI 用一次 `material_write` 装素材库 abt，大文件是标签 `v<版本>` 的 raw.githubusercontent 网址）、`dist/frame-library/`（装好后的素材库，测试用）
+- 发布顺序：升版本号 → 提交 → 打标签并推送 → 再打包（网址指向标签，package.py 会检查标签和文件是否一致）
 - 两种项目布局：AB to T 项目（components/ + web/）和 FRAME 作品（projects/<作品>/abt/<镜头>.json，组件字体在 .materials/abt），`core.find_root` 和 validate.py 都要认
 - 测 FRAME：用 frame-studio 镜像起临时容器跑 Vite，别名 `@frame/engine`→/app/src/engine、`@materials`→模拟作品的 .materials，无头 Chrome 截图；不要动线上容器和数据
 

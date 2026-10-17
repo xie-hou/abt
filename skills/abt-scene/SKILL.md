@@ -48,9 +48,11 @@ license: GPL-3.0-or-later（全文见 https://github.com/xie-hou/abt/blob/main/L
 工作目录是 FRAME 作品时（根目录 AGENTS.md 写着“FRAME 作品工作区”，作品在 `projects/<名称>/`），**不要** clone 仓库或另建 AB to T 项目，镜头作为一个 three 场景图层放进作品，FRAME 的播放器照常实时预览、导出。不用这个 skill 的作品照常写代码，不受影响。下文 `<作品>` = `projects/<名称>`。
 
 **1. 素材库 abt（同一作品库只做一次，以后只在版本变了时更新）**
-- `materials_list` 看有没有 `abt`。没有就用 `materials_link` 的 `create` 新建，文件夹名必须是 `abt`（代码里写 `@materials/abt/...`），标题 “AB to T”。
-- 把 `<skill>/frame-library/` 里的文件按相同的相对路径放进素材库（这个文件夹在 skill 包里；从仓库装的 skill 没有它，在仓库根目录运行 `python tools/package.py` 后用 `dist/frame-library/`）：文本文件（.js、.mjs、.json、.py、.md、.txt、LICENSE）用 `material_write` 的 `put` 写原文；字体用网址 `https://raw.githubusercontent.com/xie-hou/abt/main/assets/fonts/<文件名>`，或先放进作品 `public/` 再 put，放完删掉作品里的副本。
-- 已经有 `abt` 时，比较它和 `<skill>/frame-library/README.md` 里的版本号；旧了就整体重新 put（同名文件成为新版本），作品里 `materials_use` 加 `update: true`。
+装素材库要做的操作都在 `<skill>/frame-install.json` 里（skill 包里有；从仓库装的 skill 没有它，在仓库根目录运行 `python tools/package.py` 后用 `dist/frame-install.json`）。
+- `materials_list` 看有没有 `abt`。没有就用 `materials_link` 的 `create` 新建，文件夹名必须是 `abt`（代码里写 `@materials/abt/...`）。
+- 已经有 `abt` 时，看它 README 里的版本号：和 frame-install.json 的 `version` 一样就跳过下一步。
+- 调用**一次** `material_write`：`library` 写 `abt`，`operations` 原样用 frame-install.json 里的数组。不要改动，也不要自己写文件内容：大文件是 GitHub 上固定版本的网址，FRAME 服务器自己下载（同名文件成为新版本）。失败的项只重试失败的；下载失败多半是服务器连不上 GitHub，告诉用户，不要改成手写内容。
+- 更新了旧版本时，作品里 `materials_use` 加 `update: true`。
 - `materials_link` 让本作品引用 `abt`。
 
 **2. 每个镜头**

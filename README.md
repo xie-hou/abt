@@ -78,7 +78,7 @@ skill 就是一个文件夹（`SKILL.md` + 规范 + 脚本）。让 AI 把 <http
 ### FRAME Studio
 
 在 FRAME 的「技能」里上传 Releases 里的 `abt-scene-skill.zip`，之后在作品里让 AI 用 abt-scene 做镜头即可：
-- 第一次用时，AI 会在作品库里建一个 `abt` 素材库，放进播放核心、组件和字体（skill 包里自带，不联网），所有作品共用、按版本锁定。
+- 第一次用时，AI 会在作品库里建一个 `abt` 素材库，FRAME 服务器从 GitHub 下载固定版本的播放核心、组件和字体放进去（AI 只调用一次，不用抄文件内容；服务器要能访问 raw.githubusercontent.com）。所有作品共用、按版本锁定。
 - 每个镜头是作品里的一个 three 场景图层（`abt/<镜头>.json` + 几行的 `scenes/abt-<镜头>.ts`），FRAME 的播放器照常实时预览，能和其他图层叠加、在时间轴上拖动，导出走 FRAME 原来的流程。
 - 不用这个 skill 的作品完全不受影响。
 - 和 FRAME 在同一台电脑上的 Blender 可以直接导入、手调、实时写回，FRAME 预览跟着刷新。
@@ -167,7 +167,8 @@ tools/package.py    打包 Blender 插件和 skill
 
 ## 开发
 
-- 打包：`python tools/package.py`，生成 `dist/abt-<版本>.zip`、`dist/abt-scene-skill.zip`（含 FRAME 素材库）和 `dist/frame-library/`，同时重新生成 `PROMPT.md`。
+- 打包：`python tools/package.py`，生成 `dist/abt-<版本>.zip`、`dist/abt-scene-skill.zip`、`dist/frame-install.json`（在 FRAME 里装素材库的操作，文件从标签 `v<版本>` 下载）和 `dist/frame-library/`（装好后的素材库，测试用），同时重新生成 `PROMPT.md`。
+- 发布：升版本号（`blender/abt/blender_manifest.toml` 和 `.claude-plugin/plugin.json`）→ 提交 → 打标签 `v<版本>` 并推送 → 打包 → 上传 Releases。先打包再打标签的话，FRAME 会装到别的版本。
 - 检查插件清单：`claude plugin validate .`
 - 改了 Blender 插件代码后重启 Blender 生效（只改了子模块时，停用再启用插件不会重新加载）。
 - 版本兼容：和 Blender 版本有关的写法（修改器参数、合成器、动画曲线、EEVEE 名字、EXR 输出）都在 `blender/abt/core.py` 里按版本分支处理，改动后要在 4.2、4.5、5.x 上各跑一遍导入和写回。
