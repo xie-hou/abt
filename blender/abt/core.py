@@ -8,6 +8,8 @@ import contextlib
 import importlib.util
 import json
 import os
+import re
+import time
 from math import radians
 
 import bpy
@@ -110,14 +112,56 @@ def input_ids(ng):
 
 
 def param_input(ob, root, component, key):
-    """物体组件参数 key → (修改器, 输入接口 id)。Blender 5.x 的值在 mod.properties.inputs.<id>.value"""
+    """物体组件参数 key → (修改器, 输入接口 id)。"""
     schema = schema_of(root, component)
     mod = ob.modifiers[schema["name"]]
     return mod, input_ids(mod.node_group)[schema["params"][key]["label"]]
 
 
+# 修改器输入值：Blender 5.x 在 mod.properties.inputs.<id>.value，4.x 是修改器上的自定义属性 mod["<id>"]
+def mod_input_get(mod, ident):
+    return getattr(mod.properties.inputs, ident).value if hasattr(mod, "properties") else mod[ident]
+
+
+def mod_input_set(mod, ident, value):
+    if hasattr(mod, "properties"):
+        getattr(mod.properties.inputs, ident).value = value
+    else:
+        mod[ident] = value
+
+
 def input_path(mod, ident):
-    return f'modifiers["{mod.name}"].properties.inputs.{ident}.value'
+    if hasattr(mod, "properties"):
+        return f'modifiers["{mod.name}"].properties.inputs.{ident}.value'
+    return f'modifiers["{mod.name}"]["{ident}"]'
+
+
+_INPUT_PATH = re.compile(r'^modifiers\["[^"]+"\](?:\.properties\.inputs\.(\w+)\.value|\["(\w+)"\])$')
+
+
+def _ident_from_path(data_path):
+    m = _INPUT_PATH.match(data_path)
+    return (m.group(1) or m.group(2)) if m else None
+
+
+def _component_mod(ob):
+    return next(m for m in ob.modifiers if m.type == "NODES" and m.node_group and m.node_group.name.startswith("GN_"))
+
+
+def get_param(ob, key):
+    """读物体组件的参数（各版本通用），如 abt.get_param(bpy.data.objects["fx_galaxy"], "twist")。"""
+    mod = _component_mod(ob)
+    schema = schema_of(find_root(bpy.data.filepath), mod.node_group.name[3:])
+    v = mod_input_get(mod, input_ids(mod.node_group)[schema["params"][key]["label"]])
+    return list(v)[:3] if schema["params"][key]["type"] == "color" else v
+
+
+def set_param(ob, key, value):
+    """改物体组件的参数（各版本通用），如 abt.set_param(bpy.data.objects["fx_galaxy"], "twist", 1.2)。"""
+    mod = _component_mod(ob)
+    schema = schema_of(find_root(bpy.data.filepath), mod.node_group.name[3:])
+    mod_input_set(mod, input_ids(mod.node_group)[schema["params"][key]["label"]], _param_value(value))
+    ob.update_tag()
 
 
 def material_input_path(label):
@@ -139,8 +183,7 @@ def _drive_time(socket, scene):
 # ---------- 关键帧 ----------
 def _fcurve(idb, path, index):
     idb.keyframe_insert(path, index=index)
-    ad = idb.animation_data
-    return anim_utils.action_get_channelbag_for_slot(ad.action, ad.action_slot).fcurves.find(path, index=max(index, 0))
+    return next(fc for fc in fcurves_of(idb) if fc.data_path == path and fc.array_index == max(index, 0))
 
 
 def write_track(idb, path, keys, channels):
@@ -160,7 +203,8 @@ def write_track(idb, path, keys, channels):
 
         fc = _fcurve(idb, path, bl_index)
         pts = fc.keyframe_points
-        pts.clear()
+        while len(pts):
+            pts.remove(pts[0], fast=True)
         pts.add(len(keys))
         for p, k in zip(pts, keys):
             p.co = (k["f"], val(k["v"]))
@@ -192,9 +236,12 @@ def read_fcurve(fc, sign=1):
 
 def fcurves_of(idb):
     ad = idb.animation_data if idb else None
-    if not (ad and ad.action and ad.action_slot):
+    if not (ad and ad.action):
         return []
-    return list(anim_utils.action_get_channelbag_for_slot(ad.action, ad.action_slot).fcurves)
+    if hasattr(anim_utils, "action_get_channelbag_for_slot"):  # 4.4 起是分层动作，曲线在槽位的 channelbag 里
+        cb = anim_utils.action_get_channelbag_for_slot(ad.action, ad.action_slot) if ad.action_slot else None
+        return list(cb.fcurves) if cb else []
+    return list(ad.action.fcurves)
 
 
 # ---------- 节点小工具 ----------
@@ -203,6 +250,79 @@ def fresh_tree(idblock):
         idblock.use_nodes = True
     idblock.node_tree.nodes.clear()
     return idblock.node_tree
+
+
+def _node_set(node, socket, prop, value):
+    """合成节点的设置：5.x 是输入接口，4.x 多是节点属性。两种都没有时返回 False。"""
+    if socket in node.inputs:
+        node.inputs[socket].default_value = value
+    elif hasattr(node, prop):
+        setattr(node, prop, value)
+    else:
+        return False
+    return True
+
+
+def _node_get(node, socket, prop):
+    return node.inputs[socket].default_value if socket in node.inputs else getattr(node, prop, None)
+
+
+def _old_glare_size(gl):
+    """早期 4.x 的辉光尺寸是 6–9 的整数档，之后改成 0–1 的相对值。"""
+    p = gl.bl_rna.properties.get("size")
+    return "Size" not in gl.inputs and p is not None and p.type == "INT"
+
+
+BLOOM_ADD = "abt_bloom_add"  # 旧版里把光晕按强度叠回原图的 Mix 节点
+# 早期 4.x 的 Bloom 光晕能量约是新版的 6 倍：叠加系数 = 强度 × 0.17。
+# 在 4.2.23 上对照 5.2 渲染校准（强度 0.35、尺寸档 7 时平均像素差 0.59/255，与两版原始渲染本身的差异相当）
+OLD_BLOOM_GAIN = 0.17
+
+
+def build_bloom(ng, image, out, bloom):
+    """在合成节点树里搭辉光：image 是渲染图输出接口，out 是最终输出节点。效果 = 原图 + 光晕 × 强度。"""
+    threshold, strength, radius = bloom.get("threshold", 1), bloom.get("strength", 1), bloom.get("radius", 0.5)
+    gl = ng.nodes.new("CompositorNodeGlare")
+    gl.location = (300, 0)
+    ng.links.new(image, gl.inputs["Image"])
+    if "Type" in gl.inputs:
+        gl.inputs["Type"].default_value = "Bloom"
+    else:
+        gl.glare_type = "BLOOM"
+    _node_set(gl, "Threshold", "threshold", threshold)
+    if _old_glare_size(gl):
+        gl.size = max(6, min(9, round(6 + 3 * radius)))
+    else:
+        _node_set(gl, "Size", "size", radius)
+    if _node_set(gl, "Strength", "strength", strength):
+        ng.links.new(gl.outputs["Image"], out.inputs["Image"])
+        return
+    # 早期 4.x 没有强度：辉光节点只输出光晕（mix = 1），再用“相加”按强度叠回原图
+    gl.mix = 1.0
+    add = ng.nodes.new("CompositorNodeMixRGB")
+    add.name, add.label, add.blend_type = BLOOM_ADD, "辉光强度", "ADD"
+    add.location = (500, 0)
+    add.inputs[0].default_value = strength * OLD_BLOOM_GAIN
+    ng.links.new(image, add.inputs[1])
+    ng.links.new(gl.outputs["Image"], add.inputs[2])
+    ng.links.new(add.outputs["Image"], out.inputs["Image"])
+
+
+def bloom_get(ng, old=None):
+    """读回辉光设置；没有辉光节点时返回 None。old 是 JSON 里原来的值：旧版尺寸只有整数档，档位没变就保留原值。"""
+    gl = find_node(ng, "CompositorNodeGlare")
+    if not gl:
+        return None
+    strength = _node_get(gl, "Strength", "strength")
+    if strength is None:
+        add = ng.nodes.get(BLOOM_ADD)
+        strength = add.inputs[0].default_value / OLD_BLOOM_GAIN if add else 1.0
+    if _old_glare_size(gl):
+        old_r = (old or {}).get("radius")
+        radius = old_r if old_r is not None and round(6 + 3 * old_r) == gl.size else (gl.size - 6) / 3
+    else:
+        radius = _node_get(gl, "Size", "size")
+    return {"threshold": _num(_node_get(gl, "Threshold", "threshold")), "strength": _num(strength), "radius": _num(radius)}
 
 
 def _window_context():
@@ -232,6 +352,17 @@ def cap_height(font):
 
 
 # ---------- 导入 ----------
+_STARTUP_OBJECTS = {"Cube", "Camera", "Light", "立方体", "摄像机", "灯光"}
+
+
+def _has_unsaved_work():
+    """已保存过的文件有改动算；从没保存过的新文件，只有放了默认立方体、相机、灯光以外的东西才算。
+    （4.x 装完插件会把空白文件标成已修改，不能只看 is_dirty）"""
+    if not bpy.data.is_dirty:
+        return False
+    return bool(bpy.data.filepath) or any(o.name not in _STARTUP_OBJECTS for o in bpy.data.objects)
+
+
 def check_import(path, force=False):
     """导入前检查，返回 (doc, 项目目录, .blend 路径)。"""
     path = os.path.abspath(path)
@@ -240,8 +371,8 @@ def check_import(path, force=False):
     root = find_root(path)
     blend = os.path.join(root, "scenes", f"{doc['meta']['name']}.blend")
     if not force:
-        if bpy.data.is_dirty:
-            raise RuntimeError("当前 Blender 文件有未保存的修改。先保存，或勾选“覆盖”放弃这些修改")
+        if _has_unsaved_work():
+            raise RuntimeError("当前 Blender 文件有未保存的修改。先保存，或在选文件窗口右侧勾选“覆盖”放弃这些修改")
         if os.path.exists(blend):
             raise RuntimeError(f"{os.path.basename(blend)} 已存在，重新导入会冲掉在 Blender 里的手调。确认覆盖就勾选“覆盖”")
     return doc, root, blend
@@ -264,12 +395,18 @@ def import_scene(path, force=False):
     scene.render.fps = meta["fps"]
     scene.render.resolution_x, scene.render.resolution_y = meta["resolution"]
     scene.render.resolution_percentage = 100
-    scene.render.engine = "BLENDER_EEVEE"
+    try:
+        scene.render.engine = "BLENDER_EEVEE"
+    except TypeError:  # 4.2 – 4.5 叫 EEVEE Next
+        scene.render.engine = "BLENDER_EEVEE_NEXT"
     scene.view_settings.view_transform = "AgX"
     scene.view_settings.look = "None"
     scene.view_settings.exposure = doc.get("color", {}).get("exposure", 0)
     img = scene.render.image_settings
-    img.media_type = "MULTI_LAYER_IMAGE"
+    if hasattr(img, "media_type"):  # 5.x 先选媒体类型
+        img.media_type = "MULTI_LAYER_IMAGE"
+    else:
+        img.file_format = "OPEN_EXR_MULTILAYER"
     img.color_depth, img.exr_codec = "32", "ZIP"
     scene.render.filepath = f"//../renders/{meta['name']}/{meta['name']}_"
     scene.view_layers[0].use_pass_z = True
@@ -288,20 +425,18 @@ def import_scene(path, force=False):
 
     bloom = doc.get("post", {}).get("bloom")
     if bloom:
-        ng = bpy.data.node_groups.new("compositor", "CompositorNodeTree")
-        ng.interface.new_socket("Image", in_out="OUTPUT", socket_type="NodeSocketColor")
-        rl = ng.nodes.new("CompositorNodeRLayers")
-        gl = ng.nodes.new("CompositorNodeGlare")
-        gl.location = (300, 0)
-        go = ng.nodes.new("NodeGroupOutput")
-        go.location = (550, 0)
-        gl.inputs["Type"].default_value = "Bloom"
-        gl.inputs["Threshold"].default_value = bloom.get("threshold", 1)
-        gl.inputs["Strength"].default_value = bloom.get("strength", 1)
-        gl.inputs["Size"].default_value = bloom.get("radius", 0.5)
-        ng.links.new(rl.outputs["Image"], gl.inputs["Image"])
-        ng.links.new(gl.outputs["Image"], go.inputs["Image"])
-        scene.compositing_node_group = ng
+        if hasattr(scene, "compositing_node_group"):  # 5.x：合成器是一个节点组，用组输出
+            ng = bpy.data.node_groups.new("compositor", "CompositorNodeTree")
+            ng.interface.new_socket("Image", in_out="OUTPUT", socket_type="NodeSocketColor")
+            out = ng.nodes.new("NodeGroupOutput")
+            scene.compositing_node_group = ng
+        else:  # 4.x：场景自带合成节点树，用 Composite 节点输出
+            scene.use_nodes = True
+            ng = scene.node_tree
+            ng.nodes.clear()
+            out = ng.nodes.new("CompositorNodeComposite")
+        out.location = (750, 0)
+        build_bloom(ng, ng.nodes.new("CompositorNodeRLayers").outputs["Image"], out, bloom)
 
     mats, mat_comps = {}, {}
     for mid, m in doc.get("materials", {}).items():
@@ -373,7 +508,8 @@ def import_scene(path, force=False):
             ob.modifiers.new(name, "NODES").node_group = _component_group(root, o["component"], "GeometryNodeTree", "GN", ("Geometry", "NodeSocketGeometry"))
             for key, v in o.get("params", {}).items():
                 mod, ident = param_input(ob, root, o["component"], key)
-                getattr(mod.properties.inputs, ident).value = _param_value(v)
+                mod_input_set(mod, ident, _param_value(v))
+            ob.update_tag()
         nodes[oid] = (ob, o)
 
     # 相机、太阳光用 Track To 对准目标物体：挪目标就能改朝向
@@ -421,7 +557,7 @@ def import_scene(path, force=False):
             sh.use_compositor = "CAMERA"
             area.spaces.active.region_3d.view_perspective = "CAMERA"
 
-    scene["abt_source"] = os.path.relpath(path, os.path.dirname(blend))
+    scene["abt_source"] = os.path.relpath(path, os.path.dirname(blend)).replace(os.sep, "/")  # 跨系统打开 .blend 也能找到
     os.makedirs(os.path.dirname(blend), exist_ok=True)
     with _window_context():
         bpy.ops.wm.save_as_mainfile(filepath=blend, compress=True, relative_remap=True)
@@ -454,11 +590,9 @@ def export_scene(scene, quiet=False):
     bg = find_node(scene.world.node_tree if scene.world else None, "ShaderNodeBackground")
     if bg:
         doc["world"] = {"color": _rgb(bg.inputs["Color"].default_value), "strength": _num(bg.inputs["Strength"].default_value)}
-    gl = find_node(scene.compositing_node_group, "CompositorNodeGlare")
-    if gl and "bloom" in doc.get("post", {}):
-        doc["post"]["bloom"] = {"threshold": _num(gl.inputs["Threshold"].default_value),
-                                "strength": _num(gl.inputs["Strength"].default_value),
-                                "radius": _num(gl.inputs["Size"].default_value)}
+    comp_tree = scene.compositing_node_group if hasattr(scene, "compositing_node_group") else scene.node_tree
+    if "bloom" in doc.get("post", {}):
+        doc["post"]["bloom"] = bloom_get(comp_tree, doc["post"]["bloom"]) or doc["post"]["bloom"]
 
     tracks, unsynced, exported = [], [], set()
     for mid, m in doc.get("materials", {}).items():
@@ -534,7 +668,7 @@ def export_scene(scene, quiet=False):
                 for key, p in schema["params"].items():
                     if (input_path(mod, ids[p["label"]]), 0) in animated:
                         continue
-                    v = getattr(mod.properties.inputs, ids[p["label"]]).value
+                    v = mod_input_get(mod, ids[p["label"]])
                     params[key] = _rgb(v) if p["type"] == "color" else _num(v)
         for c in ob.constraints:
             if c.type == "TRACK_TO" and c.target and c.target.get("abt_id"):
@@ -548,9 +682,8 @@ def export_scene(scene, quiet=False):
                 a = next(a for a, (i, _) in ch.items() if i == fc.array_index)
                 base = "position" if dp == "location" else "scale"
                 tracks.append({"target": o["id"], "path": f"{base}.{a}", "keys": read_fcurve(fc, ch[a][1])})
-            elif kind == "component" and ".properties.inputs." in dp and ident_to_key.get(dp.split(".properties.inputs.")[1].split(".")[0]):
-                key = ident_to_key[dp.split(".properties.inputs.")[1].split(".")[0]]
-                tracks.append({"target": o["id"], "path": f"params.{key}", "keys": read_fcurve(fc)})
+            elif kind == "component" and ident_to_key.get(_ident_from_path(dp)):
+                tracks.append({"target": o["id"], "path": f"params.{ident_to_key[_ident_from_path(dp)]}", "keys": read_fcurve(fc)})
             else:
                 unsynced.append(f"{ob.name}.{dp}[{fc.array_index}]")
         data_paths = {"camera": {"lens": "lens"}, "sun": {"energy": "intensity"}}.get(kind, {})
@@ -566,16 +699,28 @@ def export_scene(scene, quiet=False):
 
     text = dumps(doc) + "\n"
     if text != old:
-        tmp = path + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            f.write(text)
-        os.replace(tmp, path)
+        _write_replace(path, text)
     msgs = [f"{'已写回' if text != old else '无变化'} {os.path.basename(path)}"]
     if unsynced:
         msgs.append("规范暂不支持、未同步的动画：" + ", ".join(unsynced))
     if not quiet:
         print("\n".join(msgs))
     return msgs
+
+
+def _write_replace(path, text):
+    """先写临时文件再替换，浏览器不会读到写了一半的 JSON。
+    Windows 上目标文件正被读取时替换会失败，稍等重试。"""
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(text)
+    for _ in range(10):
+        try:
+            os.replace(tmp, path)
+            return
+        except PermissionError:
+            time.sleep(0.03)
+    os.replace(tmp, path)
 
 
 def dumps(o, ind=0):
@@ -605,6 +750,7 @@ def _live_tick():
         try:
             export_all(quiet=True)
         except Exception as e:
+            _live["dirty"] = True  # 下一轮再试，改动不会丢
             print("[AB to T] 实时同步出错：", e)
     return 0.3
 

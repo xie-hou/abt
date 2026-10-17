@@ -8,6 +8,9 @@ import json
 import os
 import sys
 
+for _s in (sys.stdout, sys.stderr):  # 中文 Windows 上输出被管道读取时默认是 GBK，统一成 UTF-8
+    _s.reconfigure(encoding="utf-8")
+
 SPEC = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "references", "spec.md")
 
 
@@ -41,7 +44,8 @@ def component_catalog(root):
 
 def fonts(root):
     d = os.path.join(root, "assets", "fonts")
-    return ", ".join(f"`assets/fonts/{f}`" for f in sorted(os.listdir(d))) if os.path.isdir(d) else "（无）"
+    fonts = [f for f in sorted(os.listdir(d)) if f.lower().endswith((".ttf", ".otf"))] if os.path.isdir(d) else []
+    return ", ".join(f"`assets/fonts/{f}`" for f in fonts) or "（无）"
 
 
 def main():

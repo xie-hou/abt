@@ -40,7 +40,7 @@ AB to T 换了个做法：**AI 不写代码，写一份场景描述（JSON）**�
 
 ## 快速开始
 
-需要 **Blender 5.x**（插件用了 5.x 的接口，4.x 不行），以及 Chrome 或 Edge（three.js 从 CDN 加载，需要联网）。
+需要 **Blender 4.2 及以上**（实测过 4.2 LTS、4.5 LTS、5.2；4.0、4.1 没有扩展机制，装不了），以及 Chrome 或 Edge（three.js 从 CDN 加载，需要联网）。插件、播放器和 skill 都不分系统，Windows、Mac、Linux 通用。
 
 1. 下载本仓库（Code → Download ZIP，或 `git clone https://github.com/xie-hou/abt.git`）。
 2. 安装 Blender 插件：从 [Releases](https://github.com/xie-hou/abt/releases) 下载 `abt-<版本>.zip`，或在仓库里运行 `python tools/package.py` 生成到 `dist/`。
@@ -132,7 +132,7 @@ skill 就是一个文件夹（`SKILL.md` + 规范 + 脚本）。让 AI 把 <http
 ## 已知限制和计划
 
 - 暂不支持旋转（朝向用 `target`）、太阳光以外的灯光、在 Blender 里新加的物体。
-- 辉光两边算法不同，只能近似；AgX 的实现也有细微差别。
+- 辉光两边算法不同，只能近似；AgX 的实现也有细微差别。Blender 4.2 的辉光节点没有“强度”，插件按校准过的比例换算，画面和 5.x 基本一致。
 - 计划：After Effects 端（相机和空物体导出、多层 EXR 渲染通道）、噪声函数库、更多组件。
 
 ## 仓库结构
@@ -154,3 +154,4 @@ tools/package.py    打包 Blender 插件和 skill
 - 打包：`python tools/package.py`，生成 `dist/abt-<版本>.zip` 和 `dist/abt-scene-skill.zip`，同时重新生成 `PROMPT.md`。
 - 检查插件清单：`claude plugin validate .`
 - 改了 Blender 插件代码后，在 Blender 里停用再启用插件即可生效。
+- 版本兼容：和 Blender 版本有关的写法（修改器参数、合成器、动画曲线、EEVEE 名字、EXR 输出）都在 `blender/abt/core.py` 里按版本分支处理，改动后要在 4.2、4.5、5.x 上各跑一遍导入和写回。

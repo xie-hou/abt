@@ -16,7 +16,7 @@ description: 按 AB to T 规范（abt-scene/0.1）制作动画镜头：AI 写场
 需要一个 AB to T 项目：同时含 `components/`（效果组件）和 `web/`（播放器）的文件夹。
 - 当前工作目录或其上级就是项目：直接用。
 - 没有：`git clone https://github.com/xie-hou/abt.git`，或者如果 `<skill>/../..` 就是 abt 仓库（含 `web/` 和 `components/`），复制一份过去。
-- 用户还没装 Blender 插件时，告诉他：仓库 Releases 里的 `abt-<版本>.zip`，或运行 `python tools/package.py` 生成；Blender 5.x → 偏好设置 → 获取扩展 → 右上角 ⌄ → 从磁盘安装。
+- 用户还没装 Blender 插件时，告诉他：仓库 Releases 里的 `abt-<版本>.zip`，或运行 `python tools/package.py` 生成；Blender 4.2 及以上 → 偏好设置 → 获取扩展 → 右上角 ⌄ → 从磁盘安装。
 
 ## 1. 写新镜头
 1. 读 `<skill>/references/spec.md`。
@@ -38,7 +38,7 @@ description: 按 AB to T 规范（abt-scene/0.1）制作动画镜头：AI 写场
 
 `bl.py -c` 执行的代码里可以直接用 `bpy`、`abt`（插件 core 模块）：
 - 找对象：JSON 里的 id 就是 Blender 物体名，也存在 `ob["abt_id"]`。
-- 物体组件参数：`mod, ident = abt.param_input(ob, abt.find_root(bpy.data.filepath), "dot-galaxy@1", "twist")`，值在 `getattr(mod.properties.inputs, ident).value`。
+- 物体组件参数：`abt.get_param(ob, "twist")` / `abt.set_param(ob, "twist", 1.2)`（各版本 Blender 通用，不要直接碰修改器的输入接口）。
 - 代码材质参数：`bpy.data.materials["<材质 id>"].node_tree.nodes["abt_component"].inputs["<参数 label>"].default_value`。
 - 实时同步：`abt.live(True)` / `abt.live(False)`；手动写回：`abt.export_all()`。
 - Blender 界面是中文时，新建节点的默认名会被翻译：按 `bl_idname` 找节点，不要按名字。

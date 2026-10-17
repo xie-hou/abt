@@ -12,6 +12,9 @@ import os
 import socket
 import sys
 
+for _s in (sys.stdout, sys.stderr):  # 中文 Windows 上输出被管道读取时默认是 GBK，统一成 UTF-8
+    _s.reconfigure(encoding="utf-8")
+
 
 def main():
     args = sys.argv[1:]

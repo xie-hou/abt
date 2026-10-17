@@ -17,7 +17,7 @@ AI 写场景 JSON → three.js 播放 → Blender 插件导入、手调、实时
 - 打包：`python tools/package.py` → `dist/abt-<版本>.zip`（Blender 插件）、`dist/abt-scene-skill.zip`
 
 ## 改插件
-- 只支持 Blender 5.x：修改器输入是 `mod.properties.inputs.<Socket_N>.value`，合成器是 `scene.compositing_node_group`
+- 支持 Blender 4.2+：版本差异（修改器输入 5.x 在 `mod.properties.inputs`、4.x 是 `mod["Socket_N"]`；合成器 5.x 是 `scene.compositing_node_group`、4.x 是 `scene.node_tree`；4.4 起动作是分层的；EEVEE 名字；EXR 输出）都在 core.py 里分支处理，改完在 4.2、4.5、5.x 上都测
 - 改完在 Blender 里停用再启用插件（`__init__.py` 会重载子模块）
 - 界面是中文时新建节点的默认名会被翻译：按 `bl_idname` 找节点
 - 本服务器的内置浏览器建不了 WebGL，验证 three.js 画面用无头 Chrome：`google-chrome --headless=new --use-angle=swiftshader --enable-unsafe-swiftshader --screenshot=... URL`

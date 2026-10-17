@@ -1,13 +1,13 @@
 schema_version = "1.0.0"
 
 id = "abt"
-version = "0.1.0"
+version = "0.2.0"
 name = "AB to T"
 tagline = "Import AI-generated three.js scenes, tweak them, sync back live"
 maintainer = "AB to T"
 type = "add-on"
 
-blender_version_min = "5.0.0"
+blender_version_min = "4.2.0"
 
 license = ["SPDX:GPL-3.0-or-later"]
 
