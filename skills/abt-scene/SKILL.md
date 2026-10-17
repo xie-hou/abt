@@ -29,7 +29,7 @@ license: GPL-3.0-or-later（全文见 https://github.com/xie-hou/abt/blob/main/L
 `python <skill>/scripts/validate.py scenes/<镜头名>.json`（Linux / Mac 上用 python3），有错误就改到通过。
 
 ## 3. 预览和导入
-- 让用户在 Blender 里操作：侧边栏（N）→ AB to T → **导入场景 JSON** → **打开浏览器预览**。导入会自动开启实时同步。
+- 让用户在 Blender 里操作：把场景 JSON 从文件夹拖进 3D 视图（或侧边栏 N → AB to T → **导入场景 JSON**），再点 **打开浏览器预览**。导入会自动开启实时同步；以后直接打开生成的 .blend 也会自动开启。
 - 用户在插件设置里打开了“允许 AI 控制 Blender”时，AI 可以直接导入：
   `python <skill>/scripts/bl.py -c "abt.import_scene(r'<场景 JSON 的绝对路径>')"`
 - 没有 Blender、只想看 three.js：在项目根目录运行 `python -m http.server 8000 --bind 127.0.0.1`，打开 `http://127.0.0.1:8000/web/?scene=scenes/<镜头名>.json`（`&frame=100` 可以跳到某一帧）。

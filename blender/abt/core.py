@@ -363,18 +363,27 @@ def _has_unsaved_work():
     return bool(bpy.data.filepath) or any(o.name not in _STARTUP_OBJECTS for o in bpy.data.objects)
 
 
+class ImportConflict(RuntimeError):
+    """导入会放弃未保存的修改，或覆盖已有的 .blend（界面上让用户确认后再 force 导入）。"""
+
+
 def check_import(path, force=False):
-    """导入前检查，返回 (doc, 项目目录, .blend 路径)。"""
+    """导入前检查，返回 (doc, 项目目录, .blend 路径)。会覆盖东西时抛 ImportConflict。"""
     path = os.path.abspath(path)
-    with open(path, encoding="utf-8") as f:
-        doc = json.load(f)
+    try:
+        with open(path, encoding="utf-8") as f:
+            doc = json.load(f)
+    except (OSError, ValueError) as e:
+        raise RuntimeError(f"读不了 {os.path.basename(path)}：{e}") from e
+    if not (isinstance(doc, dict) and str(doc.get("spec", "")).startswith("abt-scene/")):
+        raise RuntimeError(f"{os.path.basename(path)} 不是 AB to T 场景文件（缺少 \"spec\": \"abt-scene/0.1\"）")
     root = find_root(path)
     blend = os.path.join(root, "scenes", f"{doc['meta']['name']}.blend")
     if not force:
         if _has_unsaved_work():
-            raise RuntimeError("当前 Blender 文件有未保存的修改。先保存，或在选文件窗口右侧勾选“覆盖”放弃这些修改")
+            raise ImportConflict("当前 Blender 文件有未保存的修改，导入会放弃这些修改")
         if os.path.exists(blend):
-            raise RuntimeError(f"{os.path.basename(blend)} 已存在，重新导入会冲掉在 Blender 里的手调。确认覆盖就勾选“覆盖”")
+            raise ImportConflict(f"{os.path.basename(blend)} 已存在，重新导入会冲掉在 Blender 里的手调")
     return doc, root, blend
 
 
@@ -572,9 +581,17 @@ def export_all(quiet=False):
     """把所有关联了 JSON 的场景写回，返回说明文字列表。"""
     msgs = []
     for scene in bpy.data.scenes:
-        if source_path(scene):
+        path = source_path(scene)
+        if path and os.path.isfile(path):  # JSON 被移走或删掉时跳过，不反复报错
             msgs += export_scene(scene, quiet)
+        elif path:
+            msgs.append(f"找不到 {path}，没有写回")
     return msgs
+
+
+def has_linked_scene():
+    """当前文件里有没有导入过、且对应 JSON 还在的场景。"""
+    return any((p := source_path(s)) and os.path.isfile(p) for s in bpy.data.scenes)
 
 
 def export_scene(scene, quiet=False):

@@ -45,10 +45,10 @@ AB to T 换了个做法：**AI 不写代码，写一份场景描述（JSON）**�
 1. 下载本仓库（Code → Download ZIP，或 `git clone https://github.com/xie-hou/abt.git`）。
 2. 安装 Blender 插件：从 [Releases](https://github.com/xie-hou/abt/releases) 下载 `abt-<版本>.zip`，或在仓库里运行 `python tools/package.py` 生成到 `dist/`。
    Blender → 编辑 → 偏好设置 → 获取扩展 → 右上角 ⌄ → **从磁盘安装…** → 选这个 zip。
-3. 在 3D 视图按 **N**，切到侧边栏的 **AB to T** 标签：
-   - **导入场景 JSON** → 选 `scenes/shot02.json`（示例镜头）。会生成 `scenes/shot02.blend`，并自动开启实时同步。
-   - **打开浏览器预览**：插件自带本机预览服务器，不用另装任何东西。
-4. 选中 `fx_galaxy` 在修改器面板里调参数，或选中标题在材质面板里调全息效果，看浏览器跟着变。
+3. 把 `scenes/shot02.json`（示例镜头）从文件夹**拖进 Blender 的 3D 视图**，就会导入：生成 `scenes/shot02.blend` 并开启实时同步。
+   也可以按 **N** 打开侧边栏，在 **AB to T** 标签里点 **导入场景 JSON** 选文件。
+4. 侧边栏里点 **打开浏览器预览**：插件自带本机预览服务器，不用另装任何东西。
+5. 选中 `fx_galaxy` 在修改器面板里调参数，或选中标题在材质面板里调全息效果，看浏览器跟着变。
 
 ## 用 AI 生成镜头
 
@@ -80,7 +80,7 @@ skill 就是一个文件夹（`SKILL.md` + 规范 + 脚本）。让 AI 把 <http
 1. 打开 [`PROMPT.md`](PROMPT.md)，把分隔线以下的内容整段复制给 AI，在最后写上你想要的镜头。
 2. 把 AI 回复的 JSON 存成 `scenes/<名字>.json`（名字和 JSON 里的 `meta.name` 一致）。
 3. 检查：`python skills/abt-scene/scripts/validate.py scenes/<名字>.json`，有错误就原样贴回给 AI 让它改。
-4. 在 Blender 里导入。
+4. 把 JSON 拖进 Blender 的 3D 视图导入。
 
 聊天 AI 写不了文件，只能用现有组件，不能新建效果。
 
@@ -106,6 +106,12 @@ skill 就是一个文件夹（`SKILL.md` + 规范 + 脚本）。让 AI 把 <http
   ]
 }
 ```
+
+## 日常使用
+
+- **导入**：把场景 JSON 拖进 3D 视图（或侧边栏“导入场景 JSON”）。会覆盖未保存的修改或已有的 .blend 时，会先弹确认框。
+- **继续调**：以后直接打开 `scenes/<镜头>.blend`，实时同步会自动开启（插件设置里可以关）。**不要再导入同一个 JSON**，那样会冲掉在 Blender 里的手调。
+- **AI 接着改**：继续跟 AI 说，它在 Blender 里做增量修改，改动同样实时写回。
 
 ## 在 Blender 里能调、会同步的
 
@@ -153,7 +159,7 @@ tools/package.py    打包 Blender 插件和 skill
 
 - 打包：`python tools/package.py`，生成 `dist/abt-<版本>.zip` 和 `dist/abt-scene-skill.zip`，同时重新生成 `PROMPT.md`。
 - 检查插件清单：`claude plugin validate .`
-- 改了 Blender 插件代码后，在 Blender 里停用再启用插件即可生效。
+- 改了 Blender 插件代码后重启 Blender 生效（只改了子模块时，停用再启用插件不会重新加载）。
 - 版本兼容：和 Blender 版本有关的写法（修改器参数、合成器、动画曲线、EEVEE 名字、EXR 输出）都在 `blender/abt/core.py` 里按版本分支处理，改动后要在 4.2、4.5、5.x 上各跑一遍导入和写回。
 
 ## 许可证
