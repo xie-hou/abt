@@ -1,6 +1,7 @@
 ---
 name: abt-scene
 description: 按 AB to T 规范（abt-scene/0.1）制作动画镜头：AI 写场景 JSON，three.js 直接播放，Blender 插件导入后每个参数都能手调，改动实时写回。用户想让 AI 生成 three.js 动画、镜头、片头、动态海报，又想之后在 Blender 里调整时使用；新增效果组件、检查场景 JSON、把场景导入 Blender 或修改已导入的镜头时也用。
+license: GPL-3.0-or-later（全文见 https://github.com/xie-hou/abt/blob/main/LICENSE）
 ---
 
 # AB to T 镜头

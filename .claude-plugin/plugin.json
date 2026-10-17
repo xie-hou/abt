@@ -1,9 +1,10 @@
 {
   "name": "abt",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "AB to T: AI writes a scene JSON that plays in three.js and imports into Blender as fully tweakable native data, with live sync back.",
   "author": {"name": "xie-hou"},
   "homepage": "https://github.com/xie-hou/abt",
   "repository": "https://github.com/xie-hou/abt",
+  "license": "GPL-3.0-or-later",
   "keywords": ["three.js", "blender", "animation", "motion-graphics", "skill"]
 }

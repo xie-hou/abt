@@ -155,3 +155,9 @@ tools/package.py    打包 Blender 插件和 skill
 - 检查插件清单：`claude plugin validate .`
 - 改了 Blender 插件代码后，在 Blender 里停用再启用插件即可生效。
 - 版本兼容：和 Blender 版本有关的写法（修改器参数、合成器、动画曲线、EEVEE 名字、EXR 输出）都在 `blender/abt/core.py` 里按版本分支处理，改动后要在 4.2、4.5、5.x 上各跑一遍导入和写回。
+
+## 许可证
+
+本项目以 [GPL-3.0-or-later](LICENSE) 发布：可以自由使用、修改和再发布（包括商用），但再发布修改版或包含本项目代码的作品时，也必须以 GPL 开源并附上源码。
+
+`assets/fonts/` 里的 DejaVu 字体使用它自己的许可，见 [`assets/fonts/LICENSE-DejaVu.txt`](assets/fonts/LICENSE-DejaVu.txt)。

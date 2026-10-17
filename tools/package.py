@@ -37,4 +37,5 @@ for name, (src, prefix) in outputs.items():
     path = os.path.join(DIST, name)
     with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
         add_tree(z, src, prefix)
+        z.write(os.path.join(ROOT, "LICENSE"), os.path.join(prefix, "LICENSE"))
     print(f"dist/{name}  {os.path.getsize(path) / 1024:.0f} KB")
