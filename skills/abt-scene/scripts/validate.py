@@ -3,7 +3,8 @@
 
     python validate.py <项目>/scenes/shot03.json
 
-项目目录 = 场景文件往上找到的、同时含 components/ 和 web/ 的文件夹。有错误时退出码为 1。
+组件和字体从这里找：场景文件往上找到的 AB to T 项目（同时含 components/ 和 web/），
+或 FRAME 作品（含 projects/）里的 AB to T 素材库 .materials/abt。有错误时退出码为 1。
 """
 import json
 import os
@@ -18,13 +19,25 @@ INTERP = ("bezier", "linear", "constant")
 
 
 def find_root(path):
+    """与 Blender 插件 core.find_root 相同的规则。"""
     d = os.path.dirname(os.path.abspath(path))
     while True:
         if os.path.isdir(os.path.join(d, "components")) and os.path.isdir(os.path.join(d, "web")):
             return d
+        if os.path.isdir(os.path.join(d, "projects")):  # FRAME 作品根
+            library = os.path.normpath(os.path.join(d, "..", "..", "..", "libraries", os.path.basename(os.path.dirname(d)), "abt"))
+            for lib in (os.path.join(d, ".materials", "abt"), library):
+                if os.path.isfile(os.path.join(lib, "frame.js")):
+                    return lib
         if os.path.dirname(d) == d:
             return None
         d = os.path.dirname(d)
+
+
+def font_file(root, path):
+    if os.path.isfile(os.path.join(root, "frame.js")):  # FRAME 素材库：字体都在 fonts/，按文件名找
+        return os.path.join(root, "fonts", os.path.basename(path))
+    return os.path.join(root, path)
 
 
 def is_num(x):
@@ -73,7 +86,7 @@ def validate(path):
         return [f"读不了 JSON：{e}"], []
     root = find_root(path)
     if not root:
-        return ["场景文件不在 AB to T 项目里（往上找不到同时含 components 和 web 的文件夹）"], []
+        return ["场景文件不在 AB to T 项目里，也不在引用了 abt 素材库的 FRAME 作品里"], []
 
     if doc.get("spec") != "abt-scene/0.1":
         errors.append('spec 应为 "abt-scene/0.1"')
@@ -147,8 +160,8 @@ def validate(path):
             if not isinstance(o.get("text"), str) or not o["text"]:
                 errors.append(f"{w}.text 缺失")
             font = o.get("font")
-            if not isinstance(font, str) or not os.path.isfile(os.path.join(root, font)):
-                errors.append(f"{w}.font：字体文件 {font!r} 不存在（放在 assets/fonts/ 下）")
+            if not isinstance(font, str) or not os.path.isfile(font_file(root, font)):
+                errors.append(f"{w}.font：字体文件 {font!r} 不存在（AB to T 项目放在 assets/fonts/，FRAME 放在 abt 素材库的 fonts/）")
             if o.get("material") and o["material"] not in mats:
                 errors.append(f"{w}.material：材质 {o['material']!r} 没有在 materials 里定义")
         if t == "component":

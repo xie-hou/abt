@@ -1,6 +1,6 @@
 ---
 name: abt-scene
-description: 按 AB to T 规范（abt-scene/0.1）制作动画镜头：AI 写场景 JSON，three.js 直接播放，Blender 插件导入后每个参数都能手调，改动实时写回。用户想让 AI 生成 three.js 动画、镜头、片头、动态海报，又想之后在 Blender 里调整时使用；新增效果组件、检查场景 JSON、把场景导入 Blender 或修改已导入的镜头时也用。
+description: 按 AB to T 规范（abt-scene/0.1）制作动画镜头：AI 写场景 JSON，three.js 直接播放，Blender 插件导入后每个参数都能手调，改动实时写回。用户想让 AI 生成 three.js 动画、镜头、片头、动态海报，又想之后在 Blender 里调整时使用；新增效果组件、检查场景 JSON、把场景导入 Blender 或修改已导入的镜头时也用；在 FRAME Studio 作品里也能用（作为 three 场景图层）。
 license: GPL-3.0-or-later（全文见 https://github.com/xie-hou/abt/blob/main/LICENSE）
 ---
 
@@ -43,6 +43,34 @@ license: GPL-3.0-or-later（全文见 https://github.com/xie-hou/abt/blob/main/L
 - 代码材质参数：`bpy.data.materials["<材质 id>"].node_tree.nodes["abt_component"].inputs["<参数 label>"].default_value`。
 - 实时同步：`abt.live(True)` / `abt.live(False)`；手动写回：`abt.export_all()`。
 - Blender 界面是中文时，新建节点的默认名会被翻译：按 `bl_idname` 找节点，不要按名字。
+
+## 在 FRAME Studio 里用
+工作目录是 FRAME 作品时（根目录 AGENTS.md 写着“FRAME 作品工作区”，作品在 `projects/<名称>/`），**不要** clone 仓库或另建 AB to T 项目，镜头作为一个 three 场景图层放进作品，FRAME 的播放器照常实时预览、导出。不用这个 skill 的作品照常写代码，不受影响。下文 `<作品>` = `projects/<名称>`。
+
+**1. 素材库 abt（同一作品库只做一次，以后只在版本变了时更新）**
+- `materials_list` 看有没有 `abt`。没有就用 `materials_link` 的 `create` 新建，文件夹名必须是 `abt`（代码里写 `@materials/abt/...`），标题 “AB to T”。
+- 把 `<skill>/frame-library/` 里的文件按相同的相对路径放进素材库（这个文件夹在 skill 包里；从仓库装的 skill 没有它，在仓库根目录运行 `python tools/package.py` 后用 `dist/frame-library/`）：文本文件（.js、.mjs、.json、.py、.md、.txt、LICENSE）用 `material_write` 的 `put` 写原文；字体用网址 `https://raw.githubusercontent.com/xie-hou/abt/main/assets/fonts/<文件名>`，或先放进作品 `public/` 再 put，放完删掉作品里的副本。
+- 已经有 `abt` 时，比较它和 `<skill>/frame-library/README.md` 里的版本号；旧了就整体重新 put（同名文件成为新版本），作品里 `materials_use` 加 `update: true`。
+- `materials_link` 让本作品引用 `abt`。
+
+**2. 每个镜头**
+- 镜头 JSON 写在 `<作品>/abt/<镜头>.json`，规范同上；字体写 `assets/fonts/<文件名>`，FRAME 里按文件名到素材库的 `fonts/` 找。
+- 场景图层模块 `<作品>/scenes/abt-<镜头>.ts`，只有这几行，不写画面代码：
+  ```ts
+  import type { SceneOptions } from "@frame/engine/types";
+  import { createAbtFrameScene } from "@materials/abt/frame";
+  import shot from "../abt/<镜头>.json";
+
+  export function createScene(options: SceneOptions) {
+    return createAbtFrameScene(shot, options);
+  }
+  ```
+- `scene.ts` 的 `createCompositionScene` 里注册 `"abt-<镜头>": () => import("./scenes/abt-<镜头>")`。
+- 图层（`layers_edit` 或直接改 `visual.json`）：`{ "id": "abt-<镜头>", "name": "AB to T <镜头>", "source": { "kind": "scene", "module": "abt-<镜头>", "engine": "three" }, "start": <开始秒>, "duration": <镜头时长> }`。镜头时长 =（结束帧 − 起始帧 + 1）÷ fps，图层时间 0 对应 JSON 的起始帧；作品不够长就用 `work_update` 改时长。
+- 作品画面的宽高比和 JSON 的 `meta.resolution` 保持一致（渲染尺寸由 FRAME 决定）。
+- 检查：`python3 <skill>/scripts/validate.py <作品>/abt/<镜头>.json`，再用 FRAME 的 `work_check`；看画面用 `preview_frames`（三维场景软件渲染较慢，取少量时间点）。
+
+**3. Blender**：和 FRAME 在同一台电脑上的 Blender 可以直接导入 `<作品>/abt/<镜头>.json`（拖进 3D 视图），组件和字体自动从素材库找，.blend 存在 JSON 旁边并自动加进作品的 `.gitignore`；手调实时写回 JSON，FRAME 预览跟着刷新。其他电脑上的 Blender 读不到 FRAME 服务器上的文件，暂不支持。
 
 ## 省 token
 - 只查要改的对象，不要导出整个场景。

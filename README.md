@@ -75,6 +75,14 @@ AI 会写 `scenes/shot03.json`，用检查脚本自查到通过，再告诉你�
 
 skill 就是一个文件夹（`SKILL.md` + 规范 + 脚本）。让 AI 把 <https://github.com/xie-hou/abt/tree/main/skills/abt-scene> 下载到它的 skills 目录即可，比如 Claude Code 的 `~/.claude/skills/abt-scene/`。网页版 Claude 可以在设置里上传 Releases 里的 `abt-scene-skill.zip`。
 
+### FRAME Studio
+
+在 FRAME 的「技能」里上传 Releases 里的 `abt-scene-skill.zip`，之后在作品里让 AI 用 abt-scene 做镜头即可：
+- 第一次用时，AI 会在作品库里建一个 `abt` 素材库，放进播放核心、组件和字体（skill 包里自带，不联网），所有作品共用、按版本锁定。
+- 每个镜头是作品里的一个 three 场景图层（`abt/<镜头>.json` + 几行的 `scenes/abt-<镜头>.ts`），FRAME 的播放器照常实时预览，能和其他图层叠加、在时间轴上拖动，导出走 FRAME 原来的流程。
+- 不用这个 skill 的作品完全不受影响。
+- 和 FRAME 在同一台电脑上的 Blender 可以直接导入、手调、实时写回，FRAME 预览跟着刷新。
+
 ### 任意聊天 AI（ChatGPT 等）
 
 1. 打开 [`PROMPT.md`](PROMPT.md)，把分隔线以下的内容整段复制给 AI，在最后写上你想要的镜头。
@@ -147,7 +155,9 @@ skill 就是一个文件夹（`SKILL.md` + 规范 + 脚本）。让 AI 把 <http
 skills/abt-scene/   skill：SKILL.md、references/spec.md（规范）、scripts/（检查、生成提示词、操作 Blender）
 blender/abt/        Blender 扩展源码
 components/         效果组件
-web/                three.js 播放器
+web/                three.js 播放核心（abt-engine.js）和浏览器预览
+frame/              FRAME Studio 的场景图层接口和素材库说明
+vendor/             opentype.js（字体解析，MIT）
 scenes/             场景 JSON（.blend 不进版本库）
 assets/fonts/       字体
 PROMPT.md           给聊天 AI 的提示词（自动生成）
@@ -157,7 +167,7 @@ tools/package.py    打包 Blender 插件和 skill
 
 ## 开发
 
-- 打包：`python tools/package.py`，生成 `dist/abt-<版本>.zip` 和 `dist/abt-scene-skill.zip`，同时重新生成 `PROMPT.md`。
+- 打包：`python tools/package.py`，生成 `dist/abt-<版本>.zip`、`dist/abt-scene-skill.zip`（含 FRAME 素材库）和 `dist/frame-library/`，同时重新生成 `PROMPT.md`。
 - 检查插件清单：`claude plugin validate .`
 - 改了 Blender 插件代码后重启 Blender 生效（只改了子模块时，停用再启用插件不会重新加载）。
 - 版本兼容：和 Blender 版本有关的写法（修改器参数、合成器、动画曲线、EEVEE 名字、EXR 输出）都在 `blender/abt/core.py` 里按版本分支处理，改动后要在 4.2、4.5、5.x 上各跑一遍导入和写回。
@@ -166,4 +176,4 @@ tools/package.py    打包 Blender 插件和 skill
 
 本项目以 [GPL-3.0-or-later](LICENSE) 发布：可以自由使用、修改和再发布（包括商用），但再发布修改版或包含本项目代码的作品时，也必须以 GPL 开源并附上源码。
 
-`assets/fonts/` 里的 DejaVu 字体使用它自己的许可，见 [`assets/fonts/LICENSE-DejaVu.txt`](assets/fonts/LICENSE-DejaVu.txt)。
+`vendor/opentype.min.mjs`（opentype.js 2.0.0）使用 MIT 许可，见 [`vendor/LICENSE-opentype.txt`](vendor/LICENSE-opentype.txt)。`assets/fonts/` 里的 DejaVu 字体使用它自己的许可，见 [`assets/fonts/LICENSE-DejaVu.txt`](assets/fonts/LICENSE-DejaVu.txt)。

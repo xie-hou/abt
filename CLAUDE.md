@@ -11,10 +11,13 @@ AI 写场景 JSON → three.js 播放 → Blender 插件导入、手调、实时
 ## 仓库结构
 - `blender/abt/`：Blender 扩展（core 导入导出和实时同步、bridge 给 AI 用的本机端口、server 预览服务器、ui 面板）
 - `components/<名>/`：效果组件，`component.json` + `three.js` + `blender.py`，两边公式必须一致
-- `web/`：three.js 播放器；`skills/abt-scene/`：skill，规范只在这里存一份
+- `web/abt-engine.js`：播放核心（浏览器预览 `web/runtime.js` 和 FRAME 共用）；`frame/`：FRAME 场景图层接口和素材库 README；`vendor/`：opentype.js（不用 three 的 TTFLoader，新版会从 CDN 加载）
+- `skills/abt-scene/`：skill，规范只在这里存一份
 - `.claude-plugin/`：仓库根目录同时是 Claude Code 插件市场和插件，改完运行 `claude plugin validate .`
 - `PROMPT.md`：给聊天 AI 的提示词，由 `<skill>/scripts/make_prompt.py` 生成，新增组件后要重新生成
-- 打包：`python tools/package.py` → `dist/abt-<版本>.zip`（Blender 插件）、`dist/abt-scene-skill.zip`
+- 打包：`python tools/package.py` → `dist/abt-<版本>.zip`（Blender 插件）、`dist/abt-scene-skill.zip`（含 `frame-library/`）、`dist/frame-library/`（FRAME 素材库 abt）
+- 两种项目布局：AB to T 项目（components/ + web/）和 FRAME 作品（projects/<作品>/abt/<镜头>.json，组件字体在 .materials/abt），`core.find_root` 和 validate.py 都要认
+- 测 FRAME：用 frame-studio 镜像起临时容器跑 Vite，别名 `@frame/engine`→/app/src/engine、`@materials`→模拟作品的 .materials，无头 Chrome 截图；不要动线上容器和数据
 
 ## 改插件
 - 支持 Blender 4.2+：版本差异（修改器输入 5.x 在 `mod.properties.inputs`、4.x 是 `mod["Socket_N"]`；合成器 5.x 是 `scene.compositing_node_group`、4.x 是 `scene.node_tree`；4.4 起动作是分层的；EEVEE 名字；EXR 输出）都在 core.py 里分支处理，改完在 4.2、4.5、5.x 上都测

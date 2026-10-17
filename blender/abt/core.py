@@ -20,15 +20,65 @@ from mathutils import Vector
 COMP_NODE = "abt_component"  # 材质里代码材质组件的节点名（固定名字，动画路径靠它）
 
 # ---------- 项目目录 ----------
+# 两种布局：
+#   AB to T 项目：根目录同时含 components/ 和 web/，镜头在 scenes/，字体在 assets/fonts/
+#   FRAME 作品：镜头在 projects/<作品>/abt/<镜头>.json，组件和字体在 AB to T 素材库（components/、fonts/）
 def find_root(path):
+    """组件和字体所在的目录：AB to T 项目根，或 FRAME 作品用的 AB to T 素材库。"""
     d = os.path.dirname(os.path.abspath(path))
     while True:
         if os.path.isdir(os.path.join(d, "components")) and os.path.isdir(os.path.join(d, "web")):
             return d
+        lib = _frame_library(d)
+        if lib:
+            return lib
         parent = os.path.dirname(d)
         if parent == d:
-            raise RuntimeError(f"找不到项目目录（同时含 components 和 web 文件夹）：{path}")
+            raise RuntimeError(f"找不到 AB to T 项目（含 components 和 web 的文件夹）或 FRAME 作品里的 abt 素材库：{path}")
         d = parent
+
+
+def _frame_library(d):
+    """d 是 FRAME 作品根（含 projects/）时返回 AB to T 素材库：先用作品里锁定的副本 .materials/abt
+    （和 FRAME 预览、导出用的是同一个版本），没有再用服务器上的素材库本身 data/libraries/<作品库>/abt。"""
+    if not os.path.isdir(os.path.join(d, "projects")):
+        return None
+    library = os.path.normpath(os.path.join(d, "..", "..", "..", "libraries", os.path.basename(os.path.dirname(d)), "abt"))
+    for lib in (os.path.join(d, ".materials", "abt"), library):
+        if os.path.isfile(os.path.join(lib, "frame.js")) and os.path.isdir(os.path.join(lib, "components")):
+            return lib
+    return None
+
+
+def is_frame_library(root):
+    return os.path.isfile(os.path.join(root, "frame.js"))
+
+
+def font_path(root, path):
+    """场景 JSON 里的字体路径 → 文件。FRAME 素材库的字体都在 fonts/ 下，按文件名找。"""
+    return os.path.join(root, "fonts", os.path.basename(path)) if is_frame_library(root) else os.path.join(root, path)
+
+
+def blend_path(root, json_path, name):
+    """导入生成的 .blend：AB to T 项目放 scenes/，FRAME 作品放在镜头 JSON 旁边。"""
+    if is_frame_library(root):
+        return os.path.join(os.path.dirname(os.path.abspath(json_path)), f"{name}.blend")
+    return os.path.join(root, "scenes", f"{name}.blend")
+
+
+def _frame_ignore_blend(json_path):
+    """FRAME 按 Git 保存作品版本：把 .blend 加进作品的 .gitignore，免得几十 MB 的文件进版本记录。"""
+    d = os.path.dirname(os.path.abspath(json_path))
+    while not os.path.isdir(os.path.join(d, "projects")):
+        if os.path.dirname(d) == d:
+            return
+        d = os.path.dirname(d)
+    path = os.path.join(d, ".gitignore")
+    text = open(path, encoding="utf-8").read() if os.path.exists(path) else ""
+    missing = [p for p in ("*.blend", "*.blend1") if p not in text.split()]
+    if missing:
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(("" if text.endswith("\n") or not text else "\n") + "# AB to T：Blender 文件不进版本记录\n" + "\n".join(missing) + "\n")
 
 
 def source_path(scene):
@@ -378,7 +428,7 @@ def check_import(path, force=False):
     if not (isinstance(doc, dict) and str(doc.get("spec", "")).startswith("abt-scene/")):
         raise RuntimeError(f"{os.path.basename(path)} 不是 AB to T 场景文件（缺少 \"spec\": \"abt-scene/0.1\"）")
     root = find_root(path)
-    blend = os.path.join(root, "scenes", f"{doc['meta']['name']}.blend")
+    blend = blend_path(root, path, doc["meta"]["name"])
     if not force:
         if _has_unsaved_work():
             raise ImportConflict("当前 Blender 文件有未保存的修改，导入会放弃这些修改")
@@ -492,7 +542,7 @@ def import_scene(path, force=False):
             data.body, data.extrude = o["text"], o.get("depth", 0) / 2
             data.align_x, data.align_y = "CENTER", "BOTTOM_BASELINE"
             if o.get("font"):
-                data.font = bpy.data.fonts.load(os.path.join(root, o["font"]), check_existing=True)
+                data.font = bpy.data.fonts.load(font_path(root, o["font"]), check_existing=True)
             data.size = o.get("size", 1) / cap_height(data.font)
             if o.get("material"):
                 data.materials.append(mats[o["material"]])
@@ -568,6 +618,8 @@ def import_scene(path, force=False):
 
     scene["abt_source"] = os.path.relpath(path, os.path.dirname(blend)).replace(os.sep, "/")  # 跨系统打开 .blend 也能找到
     os.makedirs(os.path.dirname(blend), exist_ok=True)
+    if is_frame_library(root):
+        _frame_ignore_blend(path)
     with _window_context():
         bpy.ops.wm.save_as_mainfile(filepath=blend, compress=True, relative_remap=True)
     live(True)

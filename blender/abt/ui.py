@@ -134,6 +134,9 @@ class ABT_OT_open_viewer(bpy.types.Operator):
             self.report({"ERROR"}, "当前场景没有关联场景 JSON，先导入")
             return {"CANCELLED"}
         root = core.find_root(src)
+        if core.is_frame_library(root):
+            self.report({"INFO"}, "这是 FRAME 作品里的镜头：在 FRAME 的播放器里预览，实时同步写回后会自动刷新")
+            return {"CANCELLED"}
         port = prefs().viewer_port
         err = server.start(root, port)
         if err:
