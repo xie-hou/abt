@@ -1,0 +1,12 @@
+{
+  "name": "abt",
+  "description": "AB to T: AI-generated three.js animation you can tweak in Blender",
+  "owner": {"name": "xie-hou"},
+  "plugins": [
+    {
+      "name": "abt",
+      "source": "./",
+      "description": "abt-scene skill: write scene JSON per the abt-scene/0.1 spec, validate it, import into Blender"
+    }
+  ]
+}

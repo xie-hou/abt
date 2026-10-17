@@ -1,0 +1,17 @@
+{
+  "name": "holo",
+  "version": 1,
+  "kind": "material",
+  "description": "全息材质（自发光）：沿世界高度滚动的扫描线 + 菲涅尔边缘光 + 闪烁",
+  "params": {
+    "color":       {"label": "Color",        "type": "color", "default": [0.35, 0.75, 1.0], "desc": "主色（线性）"},
+    "intensity":   {"label": "Intensity",    "type": "float", "default": 1.5, "min": 0, "max": 50, "desc": "整体亮度"},
+    "base":        {"label": "Base",         "type": "float", "default": 0.25, "min": 0, "max": 2, "desc": "底亮度"},
+    "scanDensity": {"label": "Scan Density", "type": "float", "default": 12, "min": 0, "max": 200, "desc": "每米扫描线条数"},
+    "scanSpeed":   {"label": "Scan Speed",   "type": "float", "default": 1.5, "min": -50, "max": 50, "desc": "扫描线滚动速度（条/秒）"},
+    "scanAmount":  {"label": "Scan Amount",  "type": "float", "default": 0.8, "min": 0, "max": 5, "desc": "扫描线亮度"},
+    "rimPower":    {"label": "Rim Power",    "type": "float", "default": 2.0, "min": 0.1, "max": 10, "desc": "边缘光衰减，越大越窄"},
+    "rimStrength": {"label": "Rim Strength", "type": "float", "default": 1.5, "min": 0, "max": 10, "desc": "边缘光亮度"},
+    "flicker":     {"label": "Flicker",      "type": "float", "default": 0.15, "min": 0, "max": 1, "desc": "闪烁幅度"}
+  }
+}

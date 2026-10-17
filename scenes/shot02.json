@@ -1,0 +1,168 @@
+{
+  "spec": "abt-scene/0.1",
+  "meta": {"name": "shot02", "fps": 24, "frames": [1, 144], "resolution": [1920, 1080], "preview_frame": 100},
+  "color": {"exposure": 0},
+  "world": {"color": [0.006, 0.008, 0.018], "strength": 1},
+  "post": {"bloom": {"threshold": 1, "strength": 0.35, "radius": 0.3}},
+  "materials": {
+    "mat_title": {
+      "component": "holo@1",
+      "params": {
+        "color": [0.35, 0.75, 1],
+        "intensity": 1.5,
+        "base": 0.25,
+        "scanDensity": 12,
+        "scanSpeed": 1.5,
+        "scanAmount": 0.8,
+        "rimPower": 2,
+        "rimStrength": 1.5,
+        "flicker": 0.15
+      }
+    }
+  },
+  "objects": [
+    {"id": "cam_target", "type": "empty", "position": [0, 0.6, 0]},
+    {
+      "id": "cam_main",
+      "type": "camera",
+      "lens": 32,
+      "sensor": 36,
+      "position": [0, 7, 13],
+      "target": "cam_target"
+    },
+    {
+      "id": "lgt_sun",
+      "type": "sun",
+      "intensity": 2.5,
+      "color": [1, 0.95, 0.9],
+      "position": [4, 8, 5],
+      "target": "cam_target"
+    },
+    {
+      "id": "fx_galaxy",
+      "type": "component",
+      "component": "dot-galaxy@1",
+      "position": [0, 0, 0],
+      "params": {
+        "count": 4000,
+        "radius": 6,
+        "twist": 0.8,
+        "amplitude": 0.5,
+        "frequency": 1.3,
+        "waveSpeed": 2.2,
+        "dotSize": 0.035,
+        "colorInner": [1, 0.42, 0.12],
+        "colorOuter": [0.08, 0.3, 1],
+        "glow": 1.6
+      }
+    },
+    {
+      "id": "txt_title",
+      "type": "text",
+      "text": "AB to T",
+      "font": "assets/fonts/DejaVuSans-Bold.ttf",
+      "size": 0.45,
+      "depth": 0.06,
+      "material": "mat_title",
+      "position": [0, 1.5, -1]
+    }
+  ],
+  "animation": [
+    {
+      "target": "cam_main",
+      "path": "position.x",
+      "keys": [
+        {"f": 1, "v": 0, "l": [-1, 0], "r": [47.6667, 0]},
+        {"f": 144, "v": 3, "l": [-47.6667, 0], "r": [1, 0]}
+      ]
+    },
+    {
+      "target": "cam_main",
+      "path": "position.y",
+      "keys": [
+        {"f": 1, "v": 7, "l": [-1, 0], "r": [47.6667, 0]},
+        {"f": 144, "v": 2.2, "l": [-47.6667, 0], "r": [1, 0]}
+      ]
+    },
+    {
+      "target": "cam_main",
+      "path": "position.z",
+      "keys": [
+        {"f": 1, "v": 13, "l": [-1, 0], "r": [47.6667, 0]},
+        {"f": 144, "v": 8.5, "l": [-47.6667, 0], "r": [1, 0]}
+      ]
+    },
+    {
+      "target": "cam_main",
+      "path": "lens",
+      "keys": [
+        {"f": 1, "v": 32, "l": [-1, 0], "r": [47.6667, 0]},
+        {"f": 144, "v": 40, "l": [-47.6667, 0], "r": [1, 0]}
+      ]
+    },
+    {
+      "target": "fx_galaxy",
+      "path": "params.amplitude",
+      "keys": [
+        {"f": 1, "v": 0, "l": [-1, 0], "r": [19.6667, 0.1667]},
+        {"f": 60, "v": 0.5, "l": [-19.6667, 0], "r": [1, 0]}
+      ]
+    },
+    {
+      "target": "fx_galaxy",
+      "path": "params.glow",
+      "keys": [
+        {"f": 1, "v": 0, "l": [-1, 0], "r": [11.6667, 0.5333]},
+        {"f": 36, "v": 1.6, "l": [-11.6667, 0], "r": [1, 0]}
+      ]
+    },
+    {
+      "target": "txt_title",
+      "path": "position.x",
+      "keys": [
+        {"f": 40, "v": 0, "l": [-1, 0], "r": [13.3333, 0]},
+        {"f": 80, "v": 0, "l": [-13.3333, 0], "r": [1, 0]}
+      ]
+    },
+    {
+      "target": "txt_title",
+      "path": "position.y",
+      "keys": [
+        {"f": 40, "v": 1, "l": [-1, 0], "r": [13.3333, 0.1667]},
+        {"f": 80, "v": 1.5, "l": [-13.3333, 0], "r": [1, 0]}
+      ]
+    },
+    {
+      "target": "txt_title",
+      "path": "position.z",
+      "keys": [
+        {"f": 40, "v": -1, "l": [-1, 0], "r": [13.3333, 0]},
+        {"f": 80, "v": -1, "l": [-13.3333, 0], "r": [1, 0]}
+      ]
+    },
+    {
+      "target": "txt_title",
+      "path": "scale.x",
+      "keys": [
+        {"f": 40, "v": 0.001, "l": [-1, 0], "r": [13.3333, 0.333]},
+        {"f": 80, "v": 1, "l": [-13.3333, 0], "r": [1, 0]}
+      ]
+    },
+    {
+      "target": "txt_title",
+      "path": "scale.y",
+      "keys": [
+        {"f": 40, "v": 0.001, "l": [-1, 0], "r": [13.3333, 0.333]},
+        {"f": 80, "v": 1, "l": [-13.3333, 0], "r": [1, 0]}
+      ]
+    },
+    {
+      "target": "txt_title",
+      "path": "scale.z",
+      "keys": [
+        {"f": 40, "v": 0.001, "l": [-1, 0], "r": [13.3333, 0.333]},
+        {"f": 80, "v": 1, "l": [-13.3333, 0], "r": [1, 0]}
+      ]
+    }
+  ]
+}

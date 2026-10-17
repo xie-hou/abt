@@ -1,0 +1,13 @@
+# 派生数据：都能重新生成
+dist/
+renders/
+cache/
+*.blend
+*.blend1
+*.tmp
+__pycache__/
+*.pyc
+
+# 本机开发配置
+.claude/launch.json
+.claude/settings.local.json

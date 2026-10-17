@@ -1,0 +1,16 @@
+schema_version = "1.0.0"
+
+id = "abt"
+version = "0.1.0"
+name = "AB to T"
+tagline = "Import AI-generated three.js scenes, tweak them, sync back live"
+maintainer = "AB to T"
+type = "add-on"
+
+blender_version_min = "5.0.0"
+
+license = ["SPDX:GPL-3.0-or-later"]
+
+[permissions]
+network = "Local preview server and optional AI bridge on 127.0.0.1"
+files = "Read and write scene JSON files in the project folder"

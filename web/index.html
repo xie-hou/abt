@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AB to T Viewer</title>
+<style>
+  :root { color-scheme: dark; --bg: #0b0d12; --bar: #12151c; --line: #232a3a; --text: #d8dde8; --muted: #8a93a8; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 13px/1.4 system-ui, sans-serif; }
+  body { display: flex; flex-direction: column; }
+  #stage { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
+  canvas { display: block; }
+  #bar { display: flex; gap: 12px; align-items: center; padding: 8px 16px; background: var(--bar); border-top: 1px solid var(--line); }
+  #scrub { flex: 1; min-width: 0; }
+  #frame { font-variant-numeric: tabular-nums; min-width: 6.5em; text-align: right; }
+  #status { color: var(--muted); min-width: 9em; text-align: right; }
+  button { background: var(--line); color: inherit; border: 1px solid #333b50; border-radius: 4px; padding: 4px 12px; cursor: pointer; }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="stage"></div>
+<div id="bar">
+  <button id="play" aria-label="播放/暂停">▶</button>
+  <input id="scrub" type="range" min="1" max="120" step="1" value="1" aria-label="时间线">
+  <span id="frame"></span>
+  <span id="status">加载中…</span>
+</div>
+<script type="module" src="./runtime.js"></script>
+</body>
+</html>
