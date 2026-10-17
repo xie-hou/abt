@@ -102,18 +102,25 @@ def build_frame_library(version):
 
 
 def build_frame_install(version, sources):
-    """FRAME 的 material_write 一次调用装好素材库：README 和 registry.js 是生成的，直接写内容（几 KB）；
-    其余文件写成标签 v<版本> 的网址，由 FRAME 服务器下载，AI 不用把文件内容抄一遍。"""
+    """FRAME 的 material_write 一次调用装好素材库：registry.js 和 README 是生成的，直接写内容（几 KB）；
+    其余文件写成标签 v<版本> 的网址，由 FRAME 服务器下载，AI 不用把文件内容抄一遍。
+    FRAME 每放一个带来源的文件就在 README 末尾追加一条记录（重放也追加），所以 README 自带完整的
+    「来源与许可」并放在最后：FRAME 写 README 时会丢掉新内容里已有的旧记录，装几次都是同一份。
+    README 最后写也让它的版本号只在其他文件都放好后才更新。"""
     tag = f"v{version}"
-
-    def text(name):
-        with open(os.path.join(FRAME_LIB, name), encoding="utf-8") as f:
-            return f.read()
-
-    ops = [{"op": "put", "path": "README.md", "content": text("README.md")},
-           {"op": "put", "path": "registry.js", "content": text("registry.js"), "license": license_of("")}]
+    readme_path = os.path.join(FRAME_LIB, "README.md")
+    with open(os.path.join(FRAME_LIB, "registry.js"), encoding="utf-8") as f:
+        ops = [{"op": "put", "path": "registry.js", "content": f.read()}]
+    notes = []
     for lib_path, repo_path in sorted(sources.items()):
-        ops.append({"op": "put", "path": lib_path, "url": f"{RAW_URL}/{tag}/{repo_path}", "license": license_of(repo_path)})
+        url, lic = f"{RAW_URL}/{tag}/{repo_path}", license_of(repo_path)
+        ops.append({"op": "put", "path": lib_path, "url": url, "license": lic})
+        notes.append(f"- `{lib_path}`：来源 {url}；许可 {lic}")  # 和 FRAME 自己写的记录逐字一致
+    with open(readme_path, encoding="utf-8") as f:
+        readme = f.read().rstrip("\n") + "\n\n## 来源与许可\n\n" + "\n".join(notes) + "\n"
+    with open(readme_path, "w", encoding="utf-8") as f:
+        f.write(readme)
+    ops.append({"op": "put", "path": "README.md", "content": readme})
     head = {
         "version": version,
         "library": FRAME_LIB_NAME,

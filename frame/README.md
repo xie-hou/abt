@@ -23,11 +23,11 @@ export function createScene(options: SceneOptions) {
 
 ## 内容
 
-- `frame.js`：FRAME 场景接口 `createAbtFrameScene(shot, options)`
-- `engine.js`：播放核心
-- `opentype.mjs`：字体解析（opentype.js 2.0.0，MIT，见 `LICENSE-opentype.txt`），不联网
-- `registry.js`：组件和字体清单（自动生成）
-- `components/<名>/`：效果组件（`three.js` 画面、`component.json` 参数说明、`blender.py` Blender 实现）
-- `fonts/`：字体
+- FRAME 场景接口 `createAbtFrameScene(shot, options)`：`frame.js`
+- 播放核心：`engine.js`
+- 字体解析（opentype.js 2.0.0，MIT，见 `LICENSE-opentype.txt`），不联网：`opentype.mjs`
+- 组件和字体清单（自动生成）：`registry.js`
+- 效果组件（`three.js` 画面、`component.json` 参数说明、`blender.py` Blender 实现）：`components/<名>/`
+- 字体：`fonts/`
 
-版本 {version}，来自 https://github.com/xie-hou/abt 。不要在这里单独改文件：在 abt 仓库里改好、重新打包后整体替换，版本号随之更新。
+版本 {version}，来自 https://github.com/xie-hou/abt 。不要在这里单独改文件：在 abt 仓库里改好、发布新版本后，用 abt-scene skill 里新的 frame-install.json 整体更新。
