@@ -75,7 +75,12 @@ license: GPL-3.0-or-later（全文见 https://github.com/xie-hou/abt/blob/main/L
 - 作品画面的宽高比和 JSON 的 `meta.resolution` 保持一致（渲染尺寸由 FRAME 决定）。
 - 检查：`python3 <skill>/scripts/validate.py <作品>/abt/<镜头>.json`，再用 FRAME 的 `work_check`；看画面用 `preview_frames`（三维场景软件渲染较慢，取少量时间点）。
 
-**3. Blender**：和 FRAME 在同一台电脑上的 Blender 可以直接导入 `<作品>/abt/<镜头>.json`（拖进 3D 视图），组件和字体自动从素材库找，.blend 存在 JSON 旁边并自动加进作品的 `.gitignore`；手调实时写回 JSON，FRAME 预览跟着刷新。其他电脑上的 Blender 读不到 FRAME 服务器上的文件，暂不支持。
+**3. Blender**：用户电脑上的 Blender 用 FRAME 的 `blender_*` 工具操作（FRAME 在服务器上也行：插件 0.6.0 起主动连 FRAME），不用 bl.py。
+- `blender_open`（`shot: "abt/<镜头>.json"`）在用户的 Blender 里打开：第一次导入，以后打开上次的 .blend（手调都在）；开着实时同步，手调写回作品里的 JSON，FRAME 预览跟着刷新。
+- 改镜头用 `blender_run`，代码和上面「4. 修改已导入的镜头」一样（`bpy`、`abt` 直接用）；看 Blender 里的画面用 `blender_view`（`camera` 快速预览、`render` 正式渲染一帧，用用户电脑的显卡）。
+- 导入后以 Blender 为准：不要再直接改 JSON（写回会冲突，要用户在 Blender 里选用哪边）；重新导入（`reimport: true`）会冲掉手调，先问用户。
+- 没连着时 `blender_status` 说原因，转告用户：在 FRAME 的「Blender」选项卡复制连接码，Blender 侧边栏 AB to T →「连接 FRAME…」粘贴。
+- 和 FRAME 在同一台电脑上时，用户也可以直接把 `<作品>/abt/<镜头>.json` 拖进 Blender 的 3D 视图导入：组件和字体自动从素材库找，.blend 存在 JSON 旁边并自动加进作品的 `.gitignore`。
 
 ## 省 token
 - 只查要改的对象，不要导出整个场景。

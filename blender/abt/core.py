@@ -771,7 +771,7 @@ def import_scene(path, force=False):
     with _window_context():
         bpy.ops.wm.save_as_mainfile(filepath=blend, compress=True, relative_remap=True)
     live(True)
-    print(f"已导入 {len(nodes)} 个对象，保存到 {os.path.relpath(blend, root)}")
+    print(f"已导入 {len(nodes)} 个对象，保存到 {os.path.basename(blend) if is_frame_library(root) else os.path.relpath(blend, root)}")
     if skipped:
         print("Blender 暂不支持、未导入的动画：", ", ".join(skipped))
 
@@ -943,6 +943,10 @@ def export_scene(scene, quiet=False):
     return msgs
 
 
+# 写回 JSON 之后调用：on_write 里的函数收到 (路径, 内容)。连接 FRAME 时用它把改动上传
+on_write = []
+
+
 def _write_replace(path, text):
     """先写临时文件再替换，浏览器不会读到写了一半的 JSON。
     Windows 上目标文件正被读取时替换会失败，稍等重试。"""
@@ -952,10 +956,16 @@ def _write_replace(path, text):
     for _ in range(10):
         try:
             os.replace(tmp, path)
-            return
+            break
         except PermissionError:
             time.sleep(0.03)
-    os.replace(tmp, path)
+    else:
+        os.replace(tmp, path)
+    for fn in list(on_write):
+        try:
+            fn(path, text)
+        except Exception as e:
+            print("[AB to T] 写回之后的处理出错：", e)
 
 
 def dumps(o, ind=0):

@@ -81,7 +81,7 @@ skill 就是一个文件夹（`SKILL.md` + 规范 + 脚本）。让 AI 把 <http
 - 第一次用时，AI 会在作品库里建一个 `abt` 素材库，FRAME 服务器从 GitHub 下载固定版本的播放核心、组件和字体放进去（AI 只调用一次，不用抄文件内容；服务器要能访问 raw.githubusercontent.com）。所有作品共用、按版本锁定。
 - 每个镜头是作品里的一个 three 场景图层（`abt/<镜头>.json` + 几行的 `scenes/abt-<镜头>.ts`），FRAME 的播放器照常实时预览，能和其他图层叠加、在时间轴上拖动，导出走 FRAME 原来的流程。
 - 不用这个 skill 的作品完全不受影响。
-- 和 FRAME 在同一台电脑上的 Blender 可以直接导入、手调、实时写回，FRAME 预览跟着刷新。
+- 镜头可以在你电脑上的 Blender 里手调，实时写回作品，FRAME 预览跟着刷新；FRAME 在服务器上也行。在 FRAME 作品的「Blender」选项卡（「素材」视图顶部的立方体按钮）点「复制连接码」，到 Blender 侧边栏 **AB to T → 连接 FRAME…** 粘贴。之后 FRAME 的 AI 能在这个 Blender 里打开镜头、改参数、用你电脑的显卡截图和渲染；你也能在「Blender」选项卡或资源管理器（右键镜头文件）里打开镜头。插件不开端口，是它主动连 FRAME；镜头和用到的组件、字体、图片在这台电脑上放一份，.blend 只留在这台电脑上。连着时 FRAME 那个作品库的 AI 能在 Blender 里执行代码，不用时在面板里把「连接 FRAME」关掉。
 
 ### 任意聊天 AI（ChatGPT 等）
 

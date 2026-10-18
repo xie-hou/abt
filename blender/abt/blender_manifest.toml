@@ -1,7 +1,7 @@
 schema_version = "1.0.0"
 
 id = "abt"
-version = "0.5.0"
+version = "0.6.0"
 name = "AB to T"
 tagline = "Import AI-generated three.js scenes, tweak them, sync back live"
 maintainer = "AB to T"
@@ -12,5 +12,5 @@ blender_version_min = "4.2.0"
 license = ["SPDX:GPL-3.0-or-later"]
 
 [permissions]
-network = "Local preview server and optional AI bridge on 127.0.0.1"
-files = "Read and write scene JSON files in the project folder"
+network = "Local preview, AI bridge on 127.0.0.1, link to a FRAME Studio"
+files = "Scene JSON in the project folder, FRAME shot copies in user data"
