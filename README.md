@@ -45,7 +45,7 @@ AB to T 换了个做法：**AI 不写代码，写一份场景描述（JSON）**�
 1. 下载本仓库（Code → Download ZIP，或 `git clone https://github.com/xie-hou/abt.git`）。
 2. 安装 Blender 插件：从 [Releases](https://github.com/xie-hou/abt/releases) 下载 `abt-<版本>.zip`，或在仓库里运行 `python tools/package.py` 生成到 `dist/`。
    Blender → 编辑 → 偏好设置 → 获取扩展 → 右上角 ⌄ → **从磁盘安装…** → 选这个 zip。
-3. 把 `scenes/shot02.json`（示例镜头）从文件夹**拖进 Blender 的 3D 视图**，就会导入：生成 `scenes/shot02.blend` 并开启实时同步。
+3. 把 `scenes/shot02.json`（示例镜头；`shot03.json` 演示旋转和图片）从文件夹**拖进 Blender 的 3D 视图**，就会导入：生成 `scenes/shot02.blend` 并开启实时同步。
    也可以按 **N** 打开侧边栏，在 **AB to T** 标签里点 **导入场景 JSON** 选文件。
 4. 侧边栏里点 **打开浏览器预览**：插件自带本机预览服务器，不用另装任何东西。
 5. 选中 `fx_galaxy` 在修改器面板里调参数，或选中标题在材质面板里调全息效果，看浏览器跟着变。
@@ -65,9 +65,9 @@ AB to T 换了个做法：**AI 不写代码，写一份场景描述（JSON）**�
 
 装好后直接描述想要的镜头，比如：
 
-> 做一个 shot03：5 秒，暗色背景，金色粒子漩涡慢慢展开，相机从高处推近，标题 NEW YEAR 在第 2 秒浮现
+> 做一个 shot04：5 秒，暗色背景，金色粒子漩涡慢慢展开，相机从高处推近，标题 NEW YEAR 在第 2 秒翻转着立起来
 
-AI 会写 `scenes/shot03.json`，用检查脚本自查到通过，再告诉你怎么导入。现有组件做不出的效果，它会新建组件（three.js 版 + Blender 版）。
+AI 会写 `scenes/shot04.json`，用检查脚本自查到通过，再告诉你怎么导入。现有组件做不出的效果，它会新建组件（three.js 版 + Blender 版）。
 
 想让 AI 直接操作 Blender（导入、在 Blender 里改参数）：在插件设置里勾选 **允许 AI 控制 Blender**，并安装 Python 3。这个开关只监听本机 127.0.0.1，但能执行任意代码，不用时关掉。
 
@@ -106,11 +106,14 @@ skill 就是一个文件夹（`SKILL.md` + 规范 + 脚本）。让 AI 把 <http
     {"id": "cam_main", "type": "camera", "lens": 35, "position": [0, 4, 12], "target": "cam_target"},
     {"id": "fx_galaxy", "type": "component", "component": "dot-galaxy@1", "params": {"radius": 5}},
     {"id": "txt_title", "type": "text", "text": "HELLO", "font": "assets/fonts/DejaVuSans-Bold.ttf",
-     "size": 0.5, "material": "mat_title", "position": [0, 1.5, -1]}
+     "size": 0.5, "material": "mat_title", "position": [0, 1.5, -1]},
+    {"id": "img_logo", "type": "image", "src": "assets/images/abt-logo.png", "height": 1, "position": [0, 2.8, -2]}
   ],
   "animation": [
     {"target": "cam_main", "path": "position", "keys": [{"f": 1, "v": [0, 4, 12]}, {"f": 120, "v": [2, 2, 8], "ease": "out"}]},
-    {"target": "fx_galaxy", "path": "params.amplitude", "keys": [{"f": 1, "v": 0}, {"f": 48, "v": 0.5}]}
+    {"target": "fx_galaxy", "path": "params.amplitude", "keys": [{"f": 1, "v": 0}, {"f": 48, "v": 0.5}]},
+    {"target": "txt_title", "path": "rotation.x", "keys": [{"f": 30, "v": -90, "ease": "out"}, {"f": 60, "v": 0}]},
+    {"target": "img_logo", "path": "opacity", "keys": [{"f": 60, "v": 0}, {"f": 84, "v": 1}]}
   ]
 }
 ```
@@ -125,13 +128,14 @@ skill 就是一个文件夹（`SKILL.md` + 规范 + 脚本）。让 AI 把 <http
 
 | 在 Blender 里 | 同步到浏览器 |
 |---|---|
-| 物体位置、缩放和它们的关键帧（含贝塞尔手柄） | ✓ |
-| 相机焦距、目标点；太阳光强度、颜色、方向 | ✓ |
+| 物体位置、旋转、缩放和它们的关键帧（含贝塞尔手柄） | ✓ |
+| 相机焦距、目标点（删掉约束就改用旋转）；太阳光强度、颜色、方向 | ✓ |
+| 图片的不透明度、亮度和它们的关键帧（侧边栏 AB to T 面板，或物体属性 → 自定义属性） | ✓ |
 | 效果组件参数和关键帧（修改器面板） | ✓ |
 | 代码材质参数和关键帧（材质面板） | ✓ |
 | 普通材质的颜色、粗糙度、金属度、自发光；世界背景；辉光 | ✓ |
 | 文字内容、字高、厚度 | ✓ |
-| 旋转、新加的物体、其他灯光类型、Blender 独有的效果 | 保留在 Blender，暂不同步 |
+| 新加的物体、换图片、其他灯光类型、Blender 独有的效果 | 保留在 Blender，暂不同步 |
 
 ## 写新组件
 
@@ -145,7 +149,8 @@ skill 就是一个文件夹（`SKILL.md` + 规范 + 脚本）。让 AI 把 <http
 
 ## 已知限制和计划
 
-- 暂不支持旋转（朝向用 `target`）、太阳光以外的灯光、在 Blender 里新加的物体。
+- 暂不支持太阳光以外的灯光、视频素材、父子层级、在 Blender 里新加的物体。
+- 旋转在 Blender 里用 YZX（文字、相机用 ZYX）欧拉模式，这样各通道和 three.js 一一对应。手动改了旋转模式时，静态朝向照常写回，旋转动画不再写回。
 - 辉光两边算法不同，只能近似；AgX 的实现也有细微差别。Blender 4.2 的辉光节点没有“强度”，插件按校准过的比例换算，画面和 5.x 基本一致。
 - 计划：After Effects 端（相机和空物体导出、多层 EXR 渲染通道）、噪声函数库、更多组件。
 
@@ -160,6 +165,7 @@ frame/              FRAME Studio 的场景图层接口和素材库说明
 vendor/             opentype.js（字体解析，MIT）
 scenes/             场景 JSON（.blend 不进版本库）
 assets/fonts/       字体
+assets/images/      图片
 PROMPT.md           给聊天 AI 的提示词（自动生成）
 .claude-plugin/     Claude Code 插件市场清单
 tools/package.py    打包 Blender 插件和 skill

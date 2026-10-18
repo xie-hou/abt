@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """生成 <项目>/PROMPT.md：给聊天 AI（ChatGPT、网页版 Claude 等）用的提示词。
-内容 = 规范（../references/spec.md）+ 项目的组件目录（components/*/component.json）+ 可用字体。
+内容 = 规范（../references/spec.md）+ 项目的组件目录（components/*/component.json）+ 可用字体和图片。
 
     python make_prompt.py [项目目录]     # 不写就从当前目录往上找
 """
@@ -42,10 +42,10 @@ def component_catalog(root):
     return "\n".join(lines)
 
 
-def fonts(root):
-    d = os.path.join(root, "assets", "fonts")
-    fonts = [f for f in sorted(os.listdir(d)) if f.lower().endswith((".ttf", ".otf"))] if os.path.isdir(d) else []
-    return ", ".join(f"`assets/fonts/{f}`" for f in fonts) or "（无）"
+def assets(root, folder, exts):
+    d = os.path.join(root, "assets", folder)
+    files = [f for f in sorted(os.listdir(d)) if f.lower().endswith(exts)] if os.path.isdir(d) else []
+    return ", ".join(f"`assets/{folder}/{f}`" for f in files) or "（无）"
 
 
 def main():
@@ -63,7 +63,7 @@ AI 回复的 JSON 保存成 `scenes/<meta.name>.json`，运行 `python skills/ab
 
 你是动画镜头生成器。按下面的规范写一个场景 JSON。要求：
 - 只输出一个 ```json 代码块，代码块外不要写别的内容。
-- 只能用下面“可用组件”和“可用字体”里列出的东西，参数名、取值范围都按表格来，不要自己编组件或参数。
+- 只能用下面“可用组件”“可用字体”“可用图片”里列出的东西，参数名、取值范围都按表格来，不要自己编组件、参数或文件。
 - 想要的效果现有组件做不出来时，用现有组件做最接近的版本，并在 `meta.note` 里用一句话写明还缺什么组件。
 - 镜头要好看：主体放在画面中部，相机运动要有缓动，元素按时间先后出场，发光强度适中。
 
@@ -74,7 +74,11 @@ AI 回复的 JSON 保存成 `scenes/<meta.name>.json`，运行 `python skills/ab
 {component_catalog(root)}
 ## 可用字体
 
-{fonts(root)}
+{assets(root, "fonts", (".ttf", ".otf"))}
+
+## 可用图片
+
+{assets(root, "images", (".png", ".jpg", ".jpeg", ".webp"))}（要用别的图片：先放进项目的 `assets/images/`，再重新生成这份提示词）
 
 ## 我想要的镜头
 

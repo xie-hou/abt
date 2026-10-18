@@ -2,6 +2,7 @@
 // 作品的 scenes/abt-<镜头>.ts 只写：
 //   export function createScene(options) { return createAbtFrameScene(shot, options); }
 // FRAME 的 time 从镜头第一帧算起（time 0 = JSON 里 meta.frames 的起始帧）。不联网：字体用素材库里的 opentype.js 解析。
+// 图片写 FRAME 的素材地址（films/<作品>/…、materials/<库>/…），和作品代码里的 assetUrl 一样。
 import { assetUrl } from "@frame/engine/types";
 import { createAbtScene, createFontCache } from "./engine.js";
 import { parse } from "./opentype.mjs";
@@ -21,6 +22,7 @@ export async function createAbtFrameScene(shot, { width, height, quality }) {
       if (!url) throw new Error(`AB to T 素材库里没有字体 ${path}：先把字体放进素材库的 fonts/`);
       return loadFontUrl(assetUrl(url));
     },
+    imageUrl: (src) => assetUrl(src),
   });
   return {
     canvas: abt.canvas,

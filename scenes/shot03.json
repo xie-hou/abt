@@ -1,0 +1,27 @@
+{
+  "spec": "abt-scene/0.1",
+  "meta": {"name": "shot03", "fps": 24, "frames": [1, 120], "resolution": [1920, 1080], "preview_frame": 96},
+  "world": {"color": [0.006, 0.008, 0.018], "strength": 1},
+  "post": {"bloom": {"threshold": 1.0, "strength": 0.35, "radius": 0.3}},
+  "materials": {
+    "mat_title": {"color": [0.9, 0.9, 0.95], "roughness": 0.35, "metalness": 0.2, "emissive": [1.0, 0.55, 0.2], "emissiveIntensity": 0.6}
+  },
+  "objects": [
+    {"id": "cam_target", "type": "empty", "position": [0, 1.2, 0]},
+    {"id": "cam_main", "type": "camera", "lens": 35, "position": [-3, 4, 12], "target": "cam_target"},
+    {"id": "sun_key", "type": "sun", "intensity": 3, "color": [1, 0.95, 0.9], "position": [4, 6, 5], "target": "cam_target"},
+    {"id": "fx_galaxy", "type": "component", "component": "dot-galaxy@1", "position": [0, -1.6, 0], "rotation": [12, 0, 0],
+     "params": {"radius": 5, "glow": 1.2}},
+    {"id": "img_logo", "type": "image", "src": "assets/images/abt-logo.png", "height": 1.6, "position": [0, 2.5, 0], "opacity": 0},
+    {"id": "txt_title", "type": "text", "text": "AB to T", "font": "assets/fonts/DejaVuSans-Bold.ttf", "size": 0.45, "depth": 0.08,
+     "material": "mat_title", "position": [0, 0.8, 0.5]}
+  ],
+  "animation": [
+    {"target": "cam_main", "path": "position", "keys": [{"f": 1, "v": [-3, 4, 12]}, {"f": 120, "v": [1.5, 2.2, 8]}]},
+    {"target": "fx_galaxy", "path": "rotation.y", "keys": [{"f": 1, "v": 0, "interp": "linear"}, {"f": 120, "v": 60}]},
+    {"target": "img_logo", "path": "opacity", "keys": [{"f": 12, "v": 0}, {"f": 36, "v": 1}]},
+    {"target": "img_logo", "path": "rotation.y", "keys": [{"f": 12, "v": -180, "ease": "out"}, {"f": 60, "v": 0}]},
+    {"target": "txt_title", "path": "rotation.x", "keys": [{"f": 40, "v": -90, "ease": "out"}, {"f": 72, "v": 0}]},
+    {"target": "txt_title", "path": "scale", "keys": [{"f": 40, "v": 0.001, "ease": "out"}, {"f": 64, "v": 1}]}
+  ]
+}

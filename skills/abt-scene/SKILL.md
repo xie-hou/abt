@@ -21,7 +21,7 @@ license: GPL-3.0-or-later（全文见 https://github.com/xie-hou/abt/blob/main/L
 
 ## 1. 写新镜头
 1. 读 `<skill>/references/spec.md`。
-2. 看项目的 `components/*/component.json`（有哪些组件、参数和范围）和 `assets/fonts/`（有哪些字体）。
+2. 看项目的 `components/*/component.json`（有哪些组件、参数和范围）、`assets/fonts/`（有哪些字体）和 `assets/images/`（有哪些图片；用户给的图片也放这里）。
 3. 写 `scenes/<镜头名>.json`，`meta.name` 和文件名一致。文件已存在时先问用户：对应的 .blend 里可能有手调。
 4. 现有组件做不出想要的效果：按规范末尾“新建组件”新建 `components/<名>/` 的三个文件，然后运行 `python <skill>/scripts/make_prompt.py <项目>` 更新给聊天 AI 用的 `PROMPT.md`。
 
@@ -40,6 +40,8 @@ license: GPL-3.0-or-later（全文见 https://github.com/xie-hou/abt/blob/main/L
 `bl.py -c` 执行的代码里可以直接用 `bpy`、`abt`（插件 core 模块）：
 - 找对象：JSON 里的 id 就是 Blender 物体名，也存在 `ob["abt_id"]`。
 - 物体组件参数：`abt.get_param(ob, "twist")` / `abt.set_param(ob, "twist", 1.2)`（各版本 Blender 通用，不要直接碰修改器的输入接口）。
+- 旋转：`abt.get_rotation(ob)` / `abt.set_rotation(ob, [x, y, z])`，用规范里的值（度）。不要直接写 `rotation_euler` 的数值：Blender 里的通道和规范不是一一对应（Y、Z 轴互换，文字和相机的 X 多 90°）。设好后可以照常 `ob.keyframe_insert("rotation_euler", frame=…)`。
+- 图片的不透明度、亮度：`ob["opacity"]`、`ob["intensity"]`，打关键帧用 `ob.keyframe_insert('["opacity"]', frame=…)`。
 - 代码材质参数：`bpy.data.materials["<材质 id>"].node_tree.nodes["abt_component"].inputs["<参数 label>"].default_value`。
 - 实时同步：`abt.live(True)` / `abt.live(False)`；手动写回：`abt.export_all()`。
 - Blender 界面是中文时，新建节点的默认名会被翻译：按 `bl_idname` 找节点，不要按名字。
@@ -57,6 +59,7 @@ license: GPL-3.0-or-later（全文见 https://github.com/xie-hou/abt/blob/main/L
 
 **2. 每个镜头**
 - 镜头 JSON 写在 `<作品>/abt/<镜头>.json`，规范同上；字体写 `assets/fonts/<文件名>`，FRAME 里按文件名到素材库的 `fonts/` 找。
+- 图片放进作品的 `public/`（如 `<作品>/public/abt/logo.png`），JSON 的 `src` 写 FRAME 的素材地址 `films/<名称>/abt/logo.png`；素材库里的图片写 `materials/<库>/<路径>`，并用 `materials_use` 锁定版本。
 - 场景图层模块 `<作品>/scenes/abt-<镜头>.ts`，只有这几行，不写画面代码：
   ```ts
   import type { SceneOptions } from "@frame/engine/types";

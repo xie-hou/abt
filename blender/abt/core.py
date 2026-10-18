@@ -1,7 +1,7 @@
 """场景 JSON（abt-scene/0.1）↔ Blender：导入、写回、实时同步。
 
-规范约定：three.js 坐标（Y 向上、右手系、米），颜色为场景线性，文档时间 t = 帧 / fps，
-文字 size = 大写 H 的高度（米）。项目目录 = 同时含 components/ 和 web/ 的文件夹，
+规范约定：three.js 坐标（Y 向上、右手系、米），旋转是 three.js 的欧拉角（度），颜色为场景线性，
+文档时间 t = 帧 / fps，文字 size = 大写 H 的高度（米）。项目目录 = 同时含 components/ 和 web/ 的文件夹，
 组件（components/<名>/blender.py）和字体都从项目目录加载，插件本身不带场景内容。
 """
 import contextlib
@@ -10,12 +10,12 @@ import json
 import os
 import re
 import time
-from math import radians
+from math import degrees, radians
 
 import bpy
 from bpy.app.handlers import persistent
 from bpy_extras import anim_utils
-from mathutils import Vector
+from mathutils import Matrix, Vector
 
 COMP_NODE = "abt_component"  # 材质里代码材质组件的节点名（固定名字，动画路径靠它）
 
@@ -38,16 +38,32 @@ def find_root(path):
         d = parent
 
 
+def _library_dirs(d):
+    """FRAME 作品根 d（含 projects/）能用的素材库位置：先是作品里锁定的副本 .materials/<库>
+    （和 FRAME 预览、导出用的是同一个版本），再是服务器上的素材库本身 data/libraries/<作品库>/<库>。"""
+    return [os.path.join(d, ".materials"),
+            os.path.normpath(os.path.join(d, "..", "..", "..", "libraries", os.path.basename(os.path.dirname(d))))]
+
+
 def _frame_library(d):
-    """d 是 FRAME 作品根（含 projects/）时返回 AB to T 素材库：先用作品里锁定的副本 .materials/abt
-    （和 FRAME 预览、导出用的是同一个版本），没有再用服务器上的素材库本身 data/libraries/<作品库>/abt。"""
+    """d 是 FRAME 作品根（含 projects/）时返回 AB to T 素材库 abt。"""
     if not os.path.isdir(os.path.join(d, "projects")):
         return None
-    library = os.path.normpath(os.path.join(d, "..", "..", "..", "libraries", os.path.basename(os.path.dirname(d)), "abt"))
-    for lib in (os.path.join(d, ".materials", "abt"), library):
+    for base in _library_dirs(d):
+        lib = os.path.join(base, "abt")
         if os.path.isfile(os.path.join(lib, "frame.js")) and os.path.isdir(os.path.join(lib, "components")):
             return lib
     return None
+
+
+def _frame_workspace(json_path):
+    """镜头 JSON 所在的 FRAME 作品根（含 projects/ 的目录），不在 FRAME 作品里时返回 None。"""
+    d = os.path.dirname(os.path.abspath(json_path))
+    while not os.path.isdir(os.path.join(d, "projects")):
+        if os.path.dirname(d) == d:
+            return None
+        d = os.path.dirname(d)
+    return d
 
 
 def is_frame_library(root):
@@ -59,6 +75,21 @@ def font_path(root, path):
     return os.path.join(root, "fonts", os.path.basename(path)) if is_frame_library(root) else os.path.join(root, path)
 
 
+def image_path(root, json_path, src):
+    """场景 JSON 里的图片路径 → 文件。AB to T 项目里相对项目根目录（一般放 assets/images/）；
+    FRAME 作品里用 FRAME 的素材地址：films/<作品>/… 是作品的 public/…，materials/<库>/… 在素材库里。"""
+    ws = _frame_workspace(json_path) if is_frame_library(root) else None
+    if not ws:
+        return os.path.join(root, src)
+    m = re.match(r"films/([^/]+)/(.+)$", src)
+    if m:
+        return os.path.join(ws, "projects", m[1], "public", m[2])
+    if src.startswith("materials/"):
+        found = [p for p in (os.path.join(b, src[len("materials/"):]) for b in _library_dirs(ws)) if os.path.isfile(p)]
+        return found[0] if found else os.path.join(_library_dirs(ws)[0], src[len("materials/"):])
+    return os.path.join(ws, src)
+
+
 def blend_path(root, json_path, name):
     """导入生成的 .blend：AB to T 项目放 scenes/，FRAME 作品放在镜头 JSON 旁边。"""
     if is_frame_library(root):
@@ -68,11 +99,9 @@ def blend_path(root, json_path, name):
 
 def _frame_ignore_blend(json_path):
     """FRAME 按 Git 保存作品版本：把 .blend 加进作品的 .gitignore，免得几十 MB 的文件进版本记录。"""
-    d = os.path.dirname(os.path.abspath(json_path))
-    while not os.path.isdir(os.path.join(d, "projects")):
-        if os.path.dirname(d) == d:
-            return
-        d = os.path.dirname(d)
+    d = _frame_workspace(json_path)
+    if not d:
+        return
     path = os.path.join(d, ".gitignore")
     text = open(path, encoding="utf-8").read() if os.path.exists(path) else ""
     missing = [p for p in ("*.blend", "*.blend1") if p not in text.split()]
@@ -94,6 +123,37 @@ def source_path(scene):
 POS_CH = {"x": (0, 1), "y": (2, 1), "z": (1, -1)}
 SCALE_CH = {"x": (0, 1), "y": (2, 1), "z": (1, 1)}
 TEXT_SCALE_CH = {"x": (0, 1), "y": (1, 1), "z": (2, 1)}  # 文字物体自身转了 90°，局部轴与 three 一致
+
+# 旋转：规范里是 three.js 的欧拉角（度，XYZ 顺序：R = Rx·Ry·Rz）。C = three → Blender 的坐标变换（正好是绕 X 转 90°）。
+# 一般物体（空物体、组件、图片）：Blender 旋转 = C·R·Cᵀ = Rx(x)·Rz(y)·Ry(−z)，用 YZX 模式时
+#   各通道和位置一样对应（x = x，y = −z，z = y），手调时 Z 就是绕竖直轴转。
+# 文字、相机：Blender 里文字躺在 XY 平面、相机朝 −Z 看，本身就比 three 差 90°，Blender 旋转 = C·R
+#   = Rx(90° + x)·Ry(y)·Rz(z)，用 ZYX 模式时通道一一对应，x 多 90°。
+_C = Matrix.Rotation(radians(90), 3, "X")
+
+
+def rot_spec(ob):
+    """(Blender 旋转模式, three 轴 → (通道, 符号), 各 Blender 通道的偏移)"""
+    if ob.type in ("FONT", "CAMERA"):
+        return "ZYX", TEXT_SCALE_CH, Vector((radians(90), 0, 0))
+    return "YZX", POS_CH, Vector((0, 0, 0))
+
+
+def set_rotation(ob, rot):
+    """按规范的值设旋转（度），如 abt.set_rotation(ob, [0, 45, 0])。之后可以照常对 rotation_euler 打关键帧。"""
+    mode, ch, off = rot_spec(ob)
+    ob.rotation_mode = mode
+    ob.rotation_euler = to_bl([radians(a) for a in rot], ch) + off
+
+
+def get_rotation(ob):
+    """物体的旋转 → 规范里的 [x, y, z]（度）。旋转模式被手动改过时按旋转矩阵换算。"""
+    mode, ch, off = rot_spec(ob)
+    if ob.rotation_mode == mode:
+        return from_bl([degrees(v) for v in Vector(ob.rotation_euler) - off], ch)
+    r = ob.matrix_basis.decompose()[1].to_matrix()
+    r = _C.transposed() @ r if ob.type in ("FONT", "CAMERA") else _C.transposed() @ r @ _C
+    return [_num(degrees(v)) for v in r.to_euler("ZYX")]
 
 
 def to_bl(v, ch=POS_CH):
@@ -237,19 +297,22 @@ def _fcurve(idb, path, index):
 
 
 def write_track(idb, path, keys, channels):
-    """channels：[(Blender 通道, 规范值里的下标或 None, 符号)]，标量属性用 [(-1, None, 1)]。
-    手柄按 Blender 方式存成绝对位置（FREE），和 runtime.js 的贝塞尔求值一一对应。"""
-    for bl_index, src, sign in channels:
-        def val(v, src=src, sign=sign):
-            return sign * (v[src] if src is not None and isinstance(v, list) else v)
+    """channels：[(Blender 通道, 规范值里的下标或 None, 倍数[, 偏移])]：Blender 值 = 倍数 × 规范值 + 偏移
+    （倍数含符号；角度的倍数是 π/180），标量属性用 [(-1, None, 1)]。
+    手柄按 Blender 方式存成绝对位置（FREE），和 abt-engine.js 的贝塞尔求值一一对应。"""
+    for bl_index, src, k_, *rest in channels:
+        b_ = rest[0] if rest else 0
 
-        def hnd(k, side, src=src, sign=sign):
+        def val(v, src=src, k_=k_, b_=b_):
+            return k_ * (v[src] if src is not None and isinstance(v, list) else v) + b_
+
+        def hnd(k, side, src=src, k_=k_):
             h = k.get(side)
             if h is None:
                 return None
             if isinstance(h[0], list):
                 h = h[src]
-            return h[0], sign * h[1]
+            return h[0], k_ * h[1]
 
         fc = _fcurve(idb, path, bl_index)
         pts = fc.keyframe_points
@@ -271,15 +334,16 @@ def write_track(idb, path, keys, channels):
         fc.update()
 
 
-def read_fcurve(fc, sign=1):
+def read_fcurve(fc, k_=1, b_=0):
+    """write_track 的反向：规范值 = (Blender 值 − 偏移) / 倍数。"""
     keys = []
     for p in fc.keyframe_points:
-        k = {"f": _num(p.co.x), "v": _num(sign * p.co.y)}
+        k = {"f": _num(p.co.x), "v": _num((p.co.y - b_) / k_)}
         if p.interpolation != "BEZIER":
             k["interp"] = INTERP_FROM_BL.get(p.interpolation, "linear")
         else:
-            k["l"] = [_num(p.handle_left.x - p.co.x), _num(sign * (p.handle_left.y - p.co.y))]
-            k["r"] = [_num(p.handle_right.x - p.co.x), _num(sign * (p.handle_right.y - p.co.y))]
+            k["l"] = [_num(p.handle_left.x - p.co.x), _num((p.handle_left.y - p.co.y) / k_)]
+            k["r"] = [_num(p.handle_right.x - p.co.x), _num((p.handle_right.y - p.co.y) / k_)]
         keys.append(k)
     return keys
 
@@ -399,6 +463,72 @@ def cap_height(font):
         bpy.data.objects.remove(ob)
         bpy.data.curves.remove(curve)
     return _caps[font.name]
+
+
+# ---------- 图片平面 ----------
+# 不透明度、亮度存在物体的自定义属性上（能直接打关键帧），材质用“属性”节点读，所以材质可以照常手调
+IMAGE_PROPS = {"opacity": ("不透明度", 1.0, 1.0), "intensity": ("亮度倍数", 1.0, 10.0)}  # 名称, 默认值, 滑块上限
+
+
+def image_size(o, aspect):
+    """width / height 只写一个时另一个按图片比例；都不写时高 1 米。和 abt-engine.js 的 imageSize 一致。"""
+    if o.get("width") and o.get("height"):
+        return o["width"], o["height"]
+    if o.get("width"):
+        return o["width"], o["width"] / aspect
+    h = o.get("height", 1)
+    return h * aspect, h
+
+
+def image_mesh(name, w, h):
+    """竖直的平面（three 的 XY 平面 = Blender 的 XZ 平面），正面朝 three 的 +Z（Blender 的 −Y），带 UV。"""
+    me = bpy.data.meshes.new(name)
+    me.from_pydata([(-w / 2, 0, -h / 2), (w / 2, 0, -h / 2), (w / 2, 0, h / 2), (-w / 2, 0, h / 2)], [], [(0, 1, 2, 3)])
+    uv = me.uv_layers.new(name="UVMap")
+    for loop, co in zip(uv.data, ((0, 0), (1, 0), (1, 1), (0, 1))):
+        loop.uv = co
+    return me
+
+
+def image_material(name, img):
+    """不受灯光影响：图片颜色 × 亮度作为自发光，透明度 = 图片 alpha × 不透明度（和 three 的 MeshBasicMaterial 一致）。"""
+    mat = bpy.data.materials.new(name)
+    nt = fresh_tree(mat)
+    tex = nt.nodes.new("ShaderNodeTexImage")
+    tex.image, tex.interpolation, tex.extension = img, "Linear", "EXTEND"  # 边缘不取对边的像素，和 three 的 ClampToEdge 一致
+    tex.location = (-500, 100)
+    attr = {}
+    for i, key in enumerate(IMAGE_PROPS):
+        a = nt.nodes.new("ShaderNodeAttribute")
+        a.attribute_type, a.attribute_name, a.label = "OBJECT", key, IMAGE_PROPS[key][0]
+        a.location = (-500, -200 - 170 * i)
+        attr[key] = a
+    alpha = nt.nodes.new("ShaderNodeMath")
+    alpha.operation, alpha.location = "MULTIPLY", (-200, 0)
+    nt.links.new(tex.outputs["Alpha"], alpha.inputs[0])
+    nt.links.new(attr["opacity"].outputs["Fac"], alpha.inputs[1])
+    em = nt.nodes.new("ShaderNodeEmission")
+    em.location = (-200, -200)
+    nt.links.new(tex.outputs["Color"], em.inputs["Color"])
+    nt.links.new(attr["intensity"].outputs["Fac"], em.inputs["Strength"])
+    tr = nt.nodes.new("ShaderNodeBsdfTransparent")
+    tr.location = (-200, 150)
+    mix = nt.nodes.new("ShaderNodeMixShader")
+    mix.location = (50, 0)
+    nt.links.new(alpha.outputs["Value"], mix.inputs["Fac"])
+    nt.links.new(tr.outputs["BSDF"], mix.inputs[1])
+    nt.links.new(em.outputs["Emission"], mix.inputs[2])
+    out = nt.nodes.new("ShaderNodeOutputMaterial")
+    out.location = (250, 0)
+    nt.links.new(mix.outputs["Shader"], out.inputs["Surface"])
+    return mat
+
+
+def set_image_prop(ob, key, value):
+    ob[key] = float(value)
+    name, default, top = IMAGE_PROPS[key]
+    ob.id_properties_ui(key).update(default=default, min=0.0, soft_max=top, max=1.0 if key == "opacity" else 1000.0,
+                                    subtype="FACTOR" if key == "opacity" else "NONE", description=name)
 
 
 # ---------- 导入 ----------
@@ -548,6 +678,13 @@ def import_scene(path, force=False):
                 data.materials.append(mats[o["material"]])
         elif kind == "component":
             data = bpy.data.meshes.new(oid)
+        elif kind == "image":
+            file = image_path(root, path, o["src"])
+            img = bpy.data.images.load(file, check_existing=True)
+            if not img.size[0] or not img.size[1]:
+                raise RuntimeError(f"{oid}：读不了图片 {o['src']}（{file}）")
+            data = image_mesh(oid, *image_size(o, img.size[0] / img.size[1]))
+            data.materials.append(image_material(oid, img))
         else:
             print(f"跳过 {oid}：Blender 暂不支持类型 {kind}")
             continue
@@ -555,13 +692,17 @@ def import_scene(path, force=False):
         scene.collection.objects.link(ob)
         ob["abt_id"] = oid
         ob.location = to_bl(o.get("position", [0, 0, 0]))
-        if kind == "text":
-            ob.rotation_euler = (radians(90), 0, 0)
+        if kind != "sun":  # 太阳光的方向由 target 决定
+            set_rotation(ob, o.get("rotation", [0, 0, 0]))
         if "scale" in o:
             s = o["scale"] if isinstance(o["scale"], list) else [o["scale"]] * 3
             ob.scale = to_bl(s, TEXT_SCALE_CH if kind == "text" else SCALE_CH)
         if kind == "empty":
             ob.empty_display_size = 0.3
+        if kind == "image":
+            ob.visible_shadow = False  # three.js 这边没有阴影
+            for key, (_, default, _) in IMAGE_PROPS.items():
+                set_image_prop(ob, key, o.get(key, default))
         if kind == "component":
             name = schema_of(root, o["component"])["name"]
             ob.modifiers.new(name, "NODES").node_group = _component_group(root, o["component"], "GeometryNodeTree", "GN", ("Geometry", "NodeSocketGeometry"))
@@ -598,6 +739,13 @@ def import_scene(path, force=False):
             axes = [sub] if sub else list("xyz")
             channels = [(ch[a][0], None if sub else "xyz".index(a), ch[a][1]) for a in axes]
             write_track(ob, "location" if base == "position" else "scale", keys, channels)
+        elif base == "rotation" and o["type"] != "sun":
+            _, ch, off = rot_spec(ob)
+            axes = [sub] if sub else list("xyz")
+            channels = [(ch[a][0], None if sub else "xyz".index(a), ch[a][1] * radians(1), off[ch[a][0]]) for a in axes]
+            write_track(ob, "rotation_euler", keys, channels)
+        elif base in IMAGE_PROPS and o["type"] == "image" and not sub:
+            write_track(ob, f'["{base}"]', keys, [(-1, None, 1)])
         elif base == "lens" and o["type"] == "camera":
             write_track(ob.data, "lens", keys, [(-1, None, 1)])
         elif base == "intensity" and o["type"] == "sun":
@@ -716,6 +864,20 @@ def export_scene(scene, quiet=False):
         scale = static_vec("scale", "scale", from_bl(ob.scale, sch), sch, 1)
         if "scale" in o or scale != [1, 1, 1]:
             o["scale"] = scale[0] if len(set(scale)) == 1 else scale
+        track_to = next((c for c in ob.constraints if c.type == "TRACK_TO" and c.target and c.target.get("abt_id")), None)
+        if track_to:
+            o["target"] = track_to.target["abt_id"]
+        elif kind == "camera":
+            o.pop("target", None)  # 在 Blender 里删了约束：朝向改由旋转决定
+        rotates = kind != "sun" and not track_to  # 太阳光、对准目标的相机，方向由 target 决定
+        if rotates:
+            rot = static_vec("rotation", "rotation_euler", get_rotation(ob), rot_spec(ob)[1], [0, 0, 0])
+            if "rotation" in o or any(rot):
+                o["rotation"] = rot
+        if kind == "image":
+            for key, (_, default, _) in IMAGE_PROPS.items():
+                if f'["{key}"]' not in {dp for dp, _ in animated} and (key in o or ob.get(key, default) != default):
+                    o[key] = _num(ob.get(key, default))
         if kind == "camera":
             o["sensor"] = _num(ob.data.sensor_width)
             if "lens" not in data_animated:
@@ -739,9 +901,6 @@ def export_scene(scene, quiet=False):
                         continue
                     v = mod_input_get(mod, ids[p["label"]])
                     params[key] = _rgb(v) if p["type"] == "color" else _num(v)
-        for c in ob.constraints:
-            if c.type == "TRACK_TO" and c.target and c.target.get("abt_id"):
-                o["target"] = c.target["abt_id"]
 
         # 动画：按通道导出，手柄写成相对偏移
         for fc in fcurves_of(ob):
@@ -751,6 +910,13 @@ def export_scene(scene, quiet=False):
                 a = next(a for a, (i, _) in ch.items() if i == fc.array_index)
                 base = "position" if dp == "location" else "scale"
                 tracks.append({"target": o["id"], "path": f"{base}.{a}", "keys": read_fcurve(fc, ch[a][1])})
+            elif dp == "rotation_euler" and rotates and ob.rotation_mode == rot_spec(ob)[0]:
+                _, ch, off = rot_spec(ob)
+                a = next(a for a, (i, _) in ch.items() if i == fc.array_index)
+                tracks.append({"target": o["id"], "path": f"rotation.{a}",
+                               "keys": read_fcurve(fc, ch[a][1] * radians(1), off[fc.array_index])})
+            elif kind == "image" and dp in (f'["{k}"]' for k in IMAGE_PROPS):
+                tracks.append({"target": o["id"], "path": dp[2:-2], "keys": read_fcurve(fc)})
             elif kind == "component" and ident_to_key.get(_ident_from_path(dp)):
                 tracks.append({"target": o["id"], "path": f"params.{ident_to_key[_ident_from_path(dp)]}", "keys": read_fcurve(fc)})
             else:

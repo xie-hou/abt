@@ -1,9 +1,9 @@
 // AB to T 浏览器预览：用播放核心（abt-engine.js）播放场景 JSON，带时间线和播放按钮。
-// 场景文件一变就自动重建（Blender 写回后这里跟着刷新）。组件和字体按网址从项目目录加载。
+// 场景文件一变就自动重建（Blender 写回后这里跟着刷新）。组件、字体、图片按网址从项目目录加载。
 import { createAbtScene, createFontCache } from './abt-engine.js';
 import { parse as parseFont } from '../vendor/opentype.min.mjs';
 
-const ROOT = new URL('../', location.href); // 项目根目录：字体、组件路径都相对它
+const ROOT = new URL('../', location.href); // 项目根目录：字体、组件、图片路径都相对它
 const QUERY = new URLSearchParams(location.search);
 const SCENE_URL = new URL(QUERY.get('scene') || 'scenes/shot02.json', ROOT);
 const POLL_MS = 500;
@@ -26,6 +26,7 @@ const loaders = {
     return components.get(name);
   },
   loadFont: (path) => loadFontUrl(new URL(path, ROOT).href),
+  imageUrl: (src) => new URL(src, ROOT).href,
 };
 
 let shot = null, docText = '';

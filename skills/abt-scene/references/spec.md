@@ -4,6 +4,7 @@
 
 ## 约定
 - 坐标：**Y 向上**、右手系、单位米（three.js / glTF 约定）。地面是 XZ 平面，相机一般放在 +Z 一侧看向原点附近。
+- 旋转：`rotation` `[x, y, z]`，单位**度**，three.js 默认的 XYZ 欧拉角。绕 Y 转是水平转身，绕 X 是前后翻，绕 Z 是在画面里打转；正角度按右手定则（逆时针）。
 - 颜色：场景线性 RGB。0–1 是常规范围，大于 1 表示更亮的发光（配合 bloom 出光晕）。
 - 时间：用帧号。组件和代码材质拿到的时间 t = 帧 / fps（秒）。
 - 色调映射统一用 AgX，亮部会偏白：想保留颜色，发光强度别太高（1–3 左右）。
@@ -31,7 +32,7 @@
 - 代码材质：`{"component": "holo@1", "params": {...}}`，只能用组件目录里 `kind` 为 `material` 的组件，`params` 只写要改的参数。
 
 ## 对象 `objects`
-每个对象都有：`id`（唯一，小写加下划线，如 `cam_main`）、`type`、`position` `[x, y, z]`，可选 `scale`（一个数或 `[x, y, z]`）。
+每个对象都有：`id`（唯一，小写加下划线，如 `cam_main`）、`type`、`position` `[x, y, z]`，可选 `rotation` `[x, y, z]`（度）、`scale`（一个数或 `[x, y, z]`）。
 
 | type | 其他字段 |
 |---|---|
@@ -40,9 +41,11 @@
 | `sun` | `intensity`（常用 1–5）、`color`、`target`：光从 `position` 照向 `target` |
 | `text` | `text`、`font`（字体路径，如 `assets/fonts/DejaVuSans-Bold.ttf`）、`size`（H 的高度，米）、`depth`（厚度，米）、`material`（材质 id）。原点在基线中点，正面朝 +Z |
 | `component` | `component`（如 `dot-galaxy@1`）、`params`（只写要改的参数，其余用默认值） |
+| `image` | `src` 图片路径、`width` / `height`（米：只写一个时另一个按图片比例，都不写时高 1 米）、`opacity` 不透明度（0–1，默认 1）、`intensity` 亮度倍数（默认 1）。原点在中心，正面朝 +Z |
 
 - 必须有且只有一个 `camera`。
-- 暂不支持旋转：需要朝向的用 `target`，文字永远正面朝 +Z。
+- 朝向：用 `rotation`，或让相机、太阳光用 `target` 对准一个对象。`sun` 只能用 target；相机二选一，有 target 就不写 rotation。不旋转时文字、图片正面朝 +Z，相机朝 −Z 看。
+- 图片：PNG（可以带透明）、JPG、WebP。AB to T 项目里放 `assets/images/`，`src` 写 `assets/images/<文件>`；FRAME 作品里写 FRAME 的素材地址 `films/<作品名称>/<文件>`（文件在作品的 `public/` 里）。图片不受灯光影响、不投影，两面都能看到；和其他画面一样经过 AgX 色调映射，纯白会显得略灰。
 
 ## 动画 `animation`
 ```json
@@ -50,8 +53,8 @@
 ```
 - `target`：对象 id，或代码材质的 id。
 - `path`：
-  - `position`、`scale`：`v` 是 `[x, y, z]`（`scale` 也可以是一个数）；只动一个轴就写 `position.y`，`v` 是一个数。
-  - `lens`（camera）、`intensity`（sun）：`v` 是一个数。
+  - `position`、`rotation`、`scale`：`v` 是 `[x, y, z]`（`rotation` 单位是度，`scale` 也可以是一个数）；只动一个轴就写 `position.y`、`rotation.y`，`v` 是一个数。转一整圈写 0 → 360，匀速转用 `"interp": "linear"`。
+  - `lens`（camera）、`intensity`（sun、image）、`opacity`（image）：`v` 是一个数。
   - `params.<参数名>`（component 对象或代码材质）：`v` 是一个数。颜色参数暂不能做动画。
 - 关键帧：`f` 帧号（递增）、`v` 值、`ease` 本段缓动（`inOut` 默认 / `in` 慢起 / `out` 慢停）、`interp`（`bezier` 默认 / `linear` / `constant`）。
 - 第一帧之前、最后一帧之后保持端点的值。
@@ -71,13 +74,16 @@
     {"id": "cam_main", "type": "camera", "lens": 35, "position": [0, 4, 12], "target": "cam_target"},
     {"id": "fx_galaxy", "type": "component", "component": "dot-galaxy@1", "position": [0, 0, 0], "params": {"radius": 5, "glow": 1.5}},
     {"id": "txt_title", "type": "text", "text": "HELLO", "font": "assets/fonts/DejaVuSans-Bold.ttf", "size": 0.5, "depth": 0.06,
-     "material": "mat_title", "position": [0, 1.5, -1]}
+     "material": "mat_title", "position": [0, 1.5, -1], "rotation": [-10, 0, 0]},
+    {"id": "img_logo", "type": "image", "src": "assets/images/abt-logo.png", "height": 1, "position": [0, 2.8, -2], "opacity": 0}
   ],
   "animation": [
     {"target": "cam_main", "path": "position", "keys": [{"f": 1, "v": [0, 4, 12]}, {"f": 120, "v": [2, 2, 8]}]},
     {"target": "fx_galaxy", "path": "params.amplitude", "keys": [{"f": 1, "v": 0, "ease": "out"}, {"f": 48, "v": 0.5}]},
     {"target": "txt_title", "path": "scale", "keys": [{"f": 30, "v": 0.001, "ease": "out"}, {"f": 60, "v": 1}]},
-    {"target": "mat_title", "path": "params.intensity", "keys": [{"f": 30, "v": 0}, {"f": 60, "v": 1.5}]}
+    {"target": "mat_title", "path": "params.intensity", "keys": [{"f": 30, "v": 0}, {"f": 60, "v": 1.5}]},
+    {"target": "img_logo", "path": "opacity", "keys": [{"f": 60, "v": 0}, {"f": 84, "v": 1}]},
+    {"target": "img_logo", "path": "rotation.y", "keys": [{"f": 60, "v": -180, "ease": "out"}, {"f": 96, "v": 0}]}
   ]
 }
 ```

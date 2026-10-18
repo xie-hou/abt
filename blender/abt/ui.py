@@ -165,6 +165,12 @@ class ABT_PT_panel(bpy.types.Panel):
         col.operator("abt.live", text="实时同步：开" if live else "实时同步：关", icon="UV_SYNC_SELECT", depress=live)
         col.operator("abt.export_scene", icon="EXPORT")
         col.operator("abt.open_viewer", icon="URL")
+        ob = context.active_object
+        if ob and ob.get("abt_id") and all(k in ob for k in core.IMAGE_PROPS):  # 图片：不透明度、亮度存在物体上，可以打关键帧
+            box = lay.box()
+            box.label(text=ob.name, icon="IMAGE_DATA")
+            for key, (name, _, _) in core.IMAGE_PROPS.items():
+                box.prop(ob, f'["{key}"]', text=name)
         p = bridge.port()
         lay.label(text=f"AI 控制：127.0.0.1:{p}" if p else "AI 控制：未开启（插件设置里打开）", icon="CONSOLE")
 

@@ -1,7 +1,8 @@
 // AB to T 播放核心：把场景 JSON（abt-scene/0.1）搭成 three.js 场景，按帧号或时间渲染。
 // 浏览器预览（runtime.js）和 FRAME 的场景图层（frame/frame.js）共用这一份。
-// 画面只由“帧号 + 文档”决定，不读系统时钟。组件和字体从哪里来由调用方传入：
-//   loaders = { loadComponent(spec) → Promise<{ schema, module }>, loadFont(path) → Promise<opentype 字体> }
+// 画面只由“帧号 + 文档”决定，不读系统时钟。组件、字体、图片从哪里来由调用方传入：
+//   loaders = { loadComponent(spec) → Promise<{ schema, module }>, loadFont(path) → Promise<opentype 字体>,
+//               imageUrl(src) → 图片网址 }
 // 字体用 opentype.js 解析（调用方传入，见 createFontCache）；不用 three 的 TTFLoader：新版 three 的 TTFLoader
 // 在导入时会从 CDN 加载 opentype.js，FRAME 里不允许联网，导出时也可能断网。
 import * as THREE from 'three';
@@ -90,6 +91,26 @@ function capHeight(font) { // size=1 时大写 H 的高度；TTFLoader 会把字
   g.dispose();
   return h;
 }
+/** width / height 只写一个时另一个按图片比例；都不写时高 1 米。和 blender/abt/core.py 的 image_size 一致。 */
+function imageSize(o, aspect) {
+  if (o.width && o.height) return [o.width, o.height];
+  if (o.width) return [o.width, o.width / aspect];
+  const h = o.height ?? 1;
+  return [h * aspect, h];
+}
+
+async function loadTexture(url) {
+  let texture;
+  try {
+    texture = await new THREE.TextureLoader().loadAsync(url);
+  } catch {
+    throw new Error(`AB to T：图片加载失败 ${url}`);
+  }
+  texture.colorSpace = THREE.SRGBColorSpace; // 和 Blender 图片的 sRGB 色彩空间一致
+  return texture;
+}
+
+const DEG = Math.PI / 180;
 const defaults = (schema, params) => Object.fromEntries(Object.entries(schema.params).map(([k, p]) => [k, params?.[k] ?? p.default]));
 const rgb = (c, s = 1) => new THREE.Color().setRGB(c[0] * s, c[1] * s, c[2] * s); // 规范里的颜色是线性值
 
@@ -143,10 +164,17 @@ async function build(doc, loaders) {
         node.params = defaults(schema, o.params);
         break;
       }
+      case 'image': { // 不受灯光影响，颜色 × 亮度，alpha × 不透明度；双面可见（Blender 的平面默认也是）
+        const map = await loadTexture(loaders.imageUrl(o.src));
+        const img = map.image;
+        const [w, h] = imageSize(o, (img.naturalWidth || img.width) / (img.naturalHeight || img.height));
+        node.material = new THREE.MeshBasicMaterial({ map, transparent: true, side: THREE.DoubleSide });
+        node.object = new THREE.Mesh(new THREE.PlaneGeometry(w, h), node.material);
+        break;
+      }
       default: console.warn('AB to T：three.js 暂不支持的类型', o.type); continue;
     }
-    node.object.position.fromArray(o.position || [0, 0, 0]);
-    if (o.scale !== undefined) setPath(node, 'scale', o.scale);
+    applyStatic(node);
     scene.add(node.object);
     nodes[o.id] = node;
   }
@@ -159,14 +187,28 @@ async function build(doc, loaders) {
   return { scene, camera, nodes };
 }
 
+/** 对象的静态值（每帧先恢复，再叠加动画轨道）。 */
+function applyStatic(node) {
+  const o = node.def;
+  node.object.position.fromArray(o.position || [0, 0, 0]);
+  setPath(node, 'rotation', o.rotation || [0, 0, 0]);
+  setPath(node, 'scale', o.scale ?? 1);
+  node.lens = o.lens;
+  node.opacity = o.opacity ?? 1;
+  node.intensity = o.intensity ?? 1;
+  if (node.params) Object.assign(node.params, o.params || {});
+}
+
 function setPath(node, path, v) {
   const [base, sub] = path.split('.');
   const o = node.object;
   switch (base) {
     case 'position': sub ? (o.position[sub] = v) : o.position.fromArray(v); break;
+    case 'rotation': sub ? (o.rotation[sub] = v * DEG) : o.rotation.set(v[0] * DEG, v[1] * DEG, v[2] * DEG); break; // 度，XYZ 顺序
     case 'scale': sub ? (o.scale[sub] = v) : typeof v === 'number' ? o.scale.setScalar(v) : o.scale.fromArray(v); break;
     case 'lens': node.lens = v; break;
-    case 'intensity': o.intensity = v; break;
+    case 'intensity': node.def.type === 'sun' ? (o.intensity = v) : (node.intensity = v); break;
+    case 'opacity': node.opacity = v; break;
     case 'params': if (node.params) node.params[sub] = v; break;
   }
 }
@@ -209,17 +251,21 @@ export async function createAbtScene(doc, { width = 1920, height = 1080, quality
 
   function renderFrame(frame) {
     for (const node of Object.values(nodes)) {
-      const o = node.def;
-      node.object?.position.fromArray(o.position || [0, 0, 0]);
-      node.lens = o.lens;
-      if (node.params) Object.assign(node.params, o.params || {});
+      if (node.object) applyStatic(node);
+      else if (node.params) Object.assign(node.params, node.def.params || {}); // 代码材质
     }
     for (const tr of doc.animation || []) {
       const node = nodes[tr.target];
       if (node) setPath(node, tr.path, evalTrack(tr.keys, frame));
     }
     const t = frame / fps;
-    for (const node of Object.values(nodes)) node.comp?.update(t, node.params);
+    for (const node of Object.values(nodes)) {
+      node.comp?.update(t, node.params);
+      if (node.def.type === 'image') {
+        node.material.opacity = node.opacity;
+        node.material.color.setScalar(node.intensity);
+      }
+    }
     camera.setFocalLength(camNode.lens ?? 50);
     if (camNode.target) camera.lookAt(camNode.target.getWorldPosition(target));
     composer.render(0); // 0：不让后期按自己的时钟推进
@@ -236,7 +282,7 @@ export async function createAbtScene(doc, { width = 1920, height = 1080, quality
     renderFrame,
     render(time) { renderFrame(start + time * fps); },
     dispose() {
-      scene.traverse((o) => { o.geometry?.dispose(); o.material?.dispose?.(); });
+      scene.traverse((o) => { o.geometry?.dispose(); o.material?.map?.dispose(); o.material?.dispose?.(); });
       for (const n of Object.values(nodes)) n.comp?.dispose();
       composer.dispose();
       renderer.dispose();
