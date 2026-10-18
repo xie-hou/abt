@@ -17,7 +17,7 @@ license: GPL-3.0-or-later（全文见 https://github.com/xie-hou/abt/blob/main/L
 需要一个 AB to T 项目：同时含 `components/`（效果组件）和 `web/`（播放器）的文件夹。
 - 当前工作目录或其上级就是项目：直接用。
 - 没有：`git clone https://github.com/xie-hou/abt.git`，或者如果 `<skill>/../..` 就是 abt 仓库（含 `web/` 和 `components/`），复制一份过去。
-- 用户还没装 Blender 插件时，告诉他：仓库 Releases 里的 `abt-<版本>.zip`，或运行 `python tools/package.py` 生成；Blender 4.2 及以上 → 偏好设置 → 获取扩展 → 右上角 ⌄ → 从磁盘安装。
+- 用户还没装 Blender 插件时，告诉他（Blender 4.2 及以上）：偏好设置 → 系统 → 网络 勾选「允许联网」；获取扩展 → 右上角「仓库」→ ＋ → 添加远程仓库，URL 填 `https://github.com/xie-hou/abt/releases/latest/download/index.json` 并勾选「启动时检查更新」；再搜索 AB to T 安装，以后会自动提示更新。不联网的话用仓库 Releases 里的 `abt-<版本>.zip` 从磁盘安装。
 
 ## 1. 写新镜头
 1. 读 `<skill>/references/spec.md`。

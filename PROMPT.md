@@ -53,7 +53,7 @@ AI 回复的 JSON 保存成 `scenes/<meta.name>.json`，运行 `python skills/ab
 |---|---|
 | `empty` | 无。常用作相机或灯光的目标点 |
 | `camera` | `lens` 焦距 mm（默认 50，常用 24–50）、`sensor` 传感器宽 mm（默认 36）、`target` 对准的对象 id |
-| `sun` | `intensity`（常用 1–5）、`color`、`target`：光从 `position` 照向 `target` |
+| `sun` | `intensity`（常用 1–5）、`color`、`target`：光从 `position` 照向 `target`，会投下阴影（图片不投影） |
 | `text` | `text`、`font`（字体路径，如 `assets/fonts/DejaVuSans-Bold.ttf`）、`size`（H 的高度，米）、`depth`（厚度，米）、`material`（材质 id）。原点在基线中点，正面朝 +Z |
 | `component` | `component`（如 `dot-galaxy@1`）、`params`（只写要改的参数，其余用默认值） |
 | `image` | `src` 图片路径、`width` / `height`（米：只写一个时另一个按图片比例，都不写时高 1 米）、`opacity` 不透明度（0–1，默认 1）、`intensity` 亮度倍数（默认 1）。原点在中心，正面朝 +Z |
@@ -137,6 +137,23 @@ AI 回复的 JSON 保存成 `scenes/<meta.name>.json`，运行 `python skills/ab
 | `rimPower` | float | `2.0` | 0.1 – 10 | 边缘光衰减，越大越窄 |
 | `rimStrength` | float | `1.5` | 0 – 10 | 边缘光亮度 |
 | `flicker` | float | `0.15` | 0 – 1 | 闪烁幅度 |
+
+### `voxel-wave@1`（物体组件，放在 objects 里）
+
+体素波浪：方块按网格一格一格堆成柱子，柱高随从中心扩散的波纹起伏（按整块取整）；可以从中心向外逐渐长出来。受灯光照明
+
+| 参数 | 类型 | 默认值 | 范围 | 说明 |
+|---|---|---|---|---|
+| `size` | int | `24` | 2 – 100 | 每边格数 |
+| `layers` | int | `10` | 1 – 40 | 柱子最多堆几块 |
+| `cell` | float | `0.25` | 0.01 – 10 | 格子边长（米） |
+| `gap` | float | `0.08` | 0 – 0.9 | 方块之间的缝（占格子的比例） |
+| `amplitude` | float | `1.0` | 0 – 1 | 起伏幅度（1 = 从 0 块到满） |
+| `frequency` | float | `1.2` | 0 – 20 | 波纹密度（弧度/米） |
+| `speed` | float | `2.5` | -50 – 50 | 波纹向外扩散的速度（弧度/秒） |
+| `reveal` | float | `1.0` | 0 – 1 | 生长进度：0 什么都没有，1 全部长出（适合做动画） |
+| `colorLow` | color | `[0.04, 0.12, 0.45]` |  | 底层颜色（线性） |
+| `colorHigh` | color | `[1.0, 0.42, 0.1]` |  | 顶层颜色（线性） |
 
 ## 可用字体
 

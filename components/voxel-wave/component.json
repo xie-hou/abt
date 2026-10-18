@@ -1,0 +1,17 @@
+{
+  "name": "voxel-wave",
+  "version": 1,
+  "description": "体素波浪：方块按网格一格一格堆成柱子，柱高随从中心扩散的波纹起伏（按整块取整）；可以从中心向外逐渐长出来。受灯光照明",
+  "params": {
+    "size":      {"label": "Size",       "type": "int",   "default": 24, "min": 2, "max": 100, "desc": "每边格数"},
+    "layers":    {"label": "Layers",     "type": "int",   "default": 10, "min": 1, "max": 40, "desc": "柱子最多堆几块"},
+    "cell":      {"label": "Cell",       "type": "float", "default": 0.25, "min": 0.01, "max": 10, "desc": "格子边长（米）"},
+    "gap":       {"label": "Gap",        "type": "float", "default": 0.08, "min": 0, "max": 0.9, "desc": "方块之间的缝（占格子的比例）"},
+    "amplitude": {"label": "Amplitude",  "type": "float", "default": 1.0, "min": 0, "max": 1, "desc": "起伏幅度（1 = 从 0 块到满）"},
+    "frequency": {"label": "Frequency",  "type": "float", "default": 1.2, "min": 0, "max": 20, "desc": "波纹密度（弧度/米）"},
+    "speed":     {"label": "Speed",      "type": "float", "default": 2.5, "min": -50, "max": 50, "desc": "波纹向外扩散的速度（弧度/秒）"},
+    "reveal":    {"label": "Reveal",     "type": "float", "default": 1.0, "min": 0, "max": 1, "desc": "生长进度：0 什么都没有，1 全部长出（适合做动画）"},
+    "colorLow":  {"label": "Low Color",  "type": "color", "default": [0.04, 0.12, 0.45], "desc": "底层颜色（线性）"},
+    "colorHigh": {"label": "High Color", "type": "color", "default": [1.0, 0.42, 0.1], "desc": "顶层颜色（线性）"}
+  }
+}

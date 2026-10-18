@@ -11,6 +11,15 @@ from bpy_extras.io_utils import ImportHelper
 from . import bridge, core, frame_link, server
 
 
+# Blender 扩展仓库形式的更新源：每个 Release 都带 index.json，这个地址总是指向最新版
+UPDATE_URL = "https://github.com/xie-hou/abt/releases/latest/download/index.json"
+UPDATE_MODULE = "abt_updates"  # 仓库的模块名：从这个仓库装的插件，包名是 bl_ext.abt_updates.abt
+
+
+def update_repo():
+    return next((r for r in bpy.context.preferences.extensions.repos if r.remote_url == UPDATE_URL), None)
+
+
 def prefs():
     return bpy.context.preferences.addons[__package__].preferences
 
@@ -44,6 +53,37 @@ class ABT_Preferences(bpy.types.AddonPreferences):
         p = bridge.port()
         col.label(text=f"AI 控制：正在监听 127.0.0.1:{p}" if p else "AI 控制：未开启", icon="CONSOLE")
         col.label(text="FRAME 在另一台电脑上时：在 3D 视图侧边栏 AB to T 面板里「连接 FRAME」", icon="LINKED")
+
+        box = self.layout.box()
+        repo = update_repo()
+        if repo and __package__.split(".")[1:2] == [repo.module]:
+            box.label(text="自动更新：已开启。有新版本时 Blender 会提示，在「获取扩展」里点更新", icon="CHECKMARK")
+        elif repo:
+            box.label(text="已添加更新源。还差一步：在「获取扩展」里卸载现在这个从磁盘装的 AB to T，", icon="INFO")
+            box.label(text="再搜索 AB to T，从「AB to T」仓库安装，以后就能自动更新")
+        else:
+            box.label(text="现在是从磁盘装的，不会自动更新", icon="INFO")
+            box.operator("abt.add_update_repo", icon="URL")
+
+
+class ABT_OT_add_update_repo(bpy.types.Operator):
+    bl_idname = "abt.add_update_repo"
+    bl_label = "添加更新源（以后自动检查新版本）"
+    bl_description = "在 Blender 的扩展仓库里添加 AB to T 的更新源，并开启启动时检查更新"
+
+    def execute(self, context):
+        repo = update_repo() or context.preferences.extensions.repos.new(name="AB to T", module=UPDATE_MODULE, remote_url=UPDATE_URL)
+        repo.enabled = True
+        repo.use_sync_on_startup = True
+        if not bpy.app.online_access:
+            self.report({"WARNING"}, "已添加更新源，但 Blender 还不能联网：偏好设置 → 系统 → 网络 里勾选「允许联网」")
+            return {"FINISHED"}
+        try:
+            bpy.ops.extensions.repo_sync_all()
+        except Exception as e:  # 同步失败不影响已添加的更新源，Blender 下次启动会再查
+            print("[AB to T] 同步更新源失败：", e)
+        self.report({"INFO"}, "已添加更新源：在「获取扩展」里卸载现在这个 AB to T，再从「AB to T」仓库安装")
+        return {"FINISHED"}
 
 
 def _popup(msg, icon="ERROR"):
@@ -306,7 +346,7 @@ def abt_load_post(*_args):
         print("[AB to T] 自动开启实时同步失败：", e)
 
 
-classes = (ABT_Preferences, ABT_OT_import, ABT_OT_export, ABT_OT_live, ABT_OT_open_viewer, ABT_OT_frame_pair, ABT_OT_frame_toggle,
+classes = (ABT_Preferences, ABT_OT_add_update_repo, ABT_OT_import, ABT_OT_export, ABT_OT_live, ABT_OT_open_viewer, ABT_OT_frame_pair, ABT_OT_frame_toggle,
            ABT_OT_frame_unpair, ABT_OT_frame_resolve, ABT_PT_panel, ABT_FH_scene_json)
 
 

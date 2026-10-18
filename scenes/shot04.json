@@ -1,0 +1,25 @@
+{
+  "spec": "abt-scene/0.1",
+  "meta": {"name": "shot04", "fps": 24, "frames": [1, 120], "resolution": [1920, 1080], "preview_frame": 100},
+  "world": {"color": [0.07, 0.08, 0.12], "strength": 1},
+  "post": {"bloom": {"threshold": 1.0, "strength": 0.3, "radius": 0.3}},
+  "materials": {
+    "mat_title": {"component": "holo@1", "params": {"color": [1.0, 0.55, 0.2], "intensity": 0}}
+  },
+  "objects": [
+    {"id": "aim", "type": "empty", "position": [0, 0.8, 0]},
+    {"id": "cam_main", "type": "camera", "lens": 32, "position": [7, 6, 8], "target": "aim"},
+    {"id": "sun_key", "type": "sun", "intensity": 3.5, "color": [1, 0.95, 0.88], "position": [-3, 8, 5], "target": "aim"},
+    {"id": "fx_voxel", "type": "component", "component": "voxel-wave@1", "position": [0, 0, 0],
+     "params": {"size": 28, "layers": 9, "cell": 0.22, "speed": 2.2, "reveal": 0}},
+    {"id": "txt_title", "type": "text", "text": "VOXEL", "font": "assets/fonts/DejaVuSans-Bold.ttf", "size": 0.55, "depth": 0.08,
+     "material": "mat_title", "position": [0, 2.8, 0], "rotation": [0, 45, 0], "scale": 0.001}
+  ],
+  "animation": [
+    {"target": "cam_main", "path": "position", "keys": [{"f": 1, "v": [7, 6, 8]}, {"f": 120, "v": [6.4, 4.6, 7.6], "ease": "out"}]},
+    {"target": "fx_voxel", "path": "params.reveal", "keys": [{"f": 1, "v": 0, "ease": "out"}, {"f": 60, "v": 1}]},
+    {"target": "txt_title", "path": "scale", "keys": [{"f": 50, "v": 0.001, "ease": "out"}, {"f": 70, "v": 1}]},
+    {"target": "txt_title", "path": "rotation.y", "keys": [{"f": 50, "v": -45, "ease": "out"}, {"f": 84, "v": 45}]},
+    {"target": "mat_title", "path": "params.intensity", "keys": [{"f": 50, "v": 0}, {"f": 80, "v": 1.6}]}
+  ]
+}

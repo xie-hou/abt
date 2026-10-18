@@ -32,9 +32,9 @@ AB to T 换了个做法：**AI 不写代码，写一份场景描述（JSON）**�
 ## 能做到什么
 
 - **物体、相机、灯光、文字**：位置、缩放、焦距、光照、字高，以及它们的关键帧（贝塞尔手柄两边一致）。
-- **程序化效果组件**：比如自带的 `dot-galaxy`（螺旋点阵 + 波纹），在 Blender 里是 Geometry Nodes，参数在修改器面板里。
+- **程序化效果组件**：比如自带的 `dot-galaxy`（螺旋点阵 + 波纹）、`voxel-wave`（体素柱随波纹起伏、从中心长出），在 Blender 里是 Geometry Nodes，参数在修改器面板里。两边按同一个公式算，体素逐块一致。
 - **代码材质组件**：比如自带的 `holo`（全息扫描线 + 菲涅尔边缘光 + 闪烁），浏览器里是 GLSL，Blender 里是着色器节点，参数在材质面板里。
-- **统一的显示标准**：Y 向上、米制、场景线性颜色、AgX 色调映射，字号按大写 H 的实际高度对齐。
+- **统一的显示标准**：Y 向上、米制、场景线性颜色，字号按大写 H 的实际高度对齐。浏览器里的色调映射用 Blender 自带的 AgX 表逐步算，像素滤镜、太阳光阴影也和 Blender 对齐，同一帧两边平均每像素只差 1–2/255。
 - **实时同步**：Blender 里一改就写回 JSON，浏览器自动刷新。
 - **省 token**：skill 平时只占约 50 token，用到时才加载；同步全是程序在跑，不经过 AI。
 
@@ -43,9 +43,13 @@ AB to T 换了个做法：**AI 不写代码，写一份场景描述（JSON）**�
 需要 **Blender 4.2 及以上**（实测过 4.2 LTS、4.5 LTS、5.2；4.0、4.1 没有扩展机制，装不了），以及 Chrome 或 Edge（three.js 从 CDN 加载，需要联网）。插件、播放器和 skill 都不分系统，Windows、Mac、Linux 通用。
 
 1. 下载本仓库（Code → Download ZIP，或 `git clone https://github.com/xie-hou/abt.git`）。
-2. 安装 Blender 插件：从 [Releases](https://github.com/xie-hou/abt/releases) 下载 `abt-<版本>.zip`，或在仓库里运行 `python tools/package.py` 生成到 `dist/`。
-   Blender → 编辑 → 偏好设置 → 获取扩展 → 右上角 ⌄ → **从磁盘安装…** → 选这个 zip。
-3. 把 `scenes/shot02.json`（示例镜头；`shot03.json` 演示旋转和图片）从文件夹**拖进 Blender 的 3D 视图**，就会导入：生成 `scenes/shot02.blend` 并开启实时同步。
+2. 安装 Blender 插件，推荐用更新源装，以后有新版本 Blender 会自动提示：
+   - Blender → 编辑 → 偏好设置 → **系统 → 网络** 勾选「允许联网」；
+   - **获取扩展** → 右上角「仓库」下拉 → **＋ → 添加远程仓库**，URL 填 `https://github.com/xie-hou/abt/releases/latest/download/index.json`，勾选「启动时检查更新」；
+   - 在获取扩展里搜索 **AB to T** → 安装。
+
+   不想联网也可以从 [Releases](https://github.com/xie-hou/abt/releases) 下载 `abt-<版本>.zip`，在获取扩展 → 右上角 ⌄ → **从磁盘安装…**（这样装的不会自动更新）。已经从磁盘装过的，插件设置里有「添加更新源」按钮：点一下，再卸载旧的、从「AB to T」仓库重装一次即可。
+3. 把 `scenes/shot02.json`（示例镜头；`shot03.json` 演示旋转和图片，`shot04.json` 演示体素）从文件夹**拖进 Blender 的 3D 视图**，就会导入：生成 `scenes/shot02.blend` 并开启实时同步。
    也可以按 **N** 打开侧边栏，在 **AB to T** 标签里点 **导入场景 JSON** 选文件。
 4. 侧边栏里点 **打开浏览器预览**：插件自带本机预览服务器，不用另装任何东西。
 5. 选中 `fx_galaxy` 在修改器面板里调参数，或选中标题在材质面板里调全息效果，看浏览器跟着变。
@@ -151,7 +155,8 @@ skill 就是一个文件夹（`SKILL.md` + 规范 + 脚本）。让 AI 把 <http
 
 - 暂不支持太阳光以外的灯光、视频素材、父子层级、在 Blender 里新加的物体。
 - 旋转在 Blender 里用 YZX（文字、相机用 ZYX）欧拉模式，这样各通道和 three.js 一一对应。手动改了旋转模式时，静态朝向照常写回，旋转动画不再写回。
-- 辉光两边算法不同，只能近似；AgX 的实现也有细微差别。Blender 4.2 的辉光节点没有“强度”，插件按校准过的比例换算，画面和 5.x 基本一致。
+- 辉光两边算法不同，只能近似。Blender 4.2 的辉光节点没有“强度”，插件按校准过的比例换算，画面和 5.x 基本一致。
+- 环境光遮蔽：EEVEE 会让缝隙、角落略暗一点，浏览器里没有；挤出文字的侧面明暗也有细微差别。
 - 计划：After Effects 端（相机和空物体导出、多层 EXR 渲染通道）、噪声函数库、更多组件。
 
 ## 仓库结构
@@ -173,8 +178,9 @@ tools/package.py    打包 Blender 插件和 skill
 
 ## 开发
 
-- 打包：`python tools/package.py`，生成 `dist/abt-<版本>.zip`、`dist/abt-scene-skill.zip`、`dist/frame-install.json`（在 FRAME 里装素材库的操作，文件从标签 `v<版本>` 下载）和 `dist/frame-library/`（装好后的素材库，测试用），同时重新生成 `PROMPT.md`。
-- 发布：升版本号（`blender/abt/blender_manifest.toml` 和 `.claude-plugin/plugin.json`）→ 提交 → 打标签 `v<版本>` 并推送 → 打包 → 上传 Releases。先打包再打标签的话，FRAME 会装到别的版本。
+- 打包：`python tools/package.py`（需要 Python 3.11+），生成 `dist/abt-<版本>.zip`、`dist/abt-scene-skill.zip`、`dist/frame-install.json`（在 FRAME 里装素材库的操作，文件从标签 `v<版本>` 下载）、`dist/index.json`（Blender 更新源的清单）和 `dist/frame-library/`（装好后的素材库，测试用），同时重新生成 `PROMPT.md`。
+- 发布：升版本号（`blender/abt/blender_manifest.toml` 和 `.claude-plugin/plugin.json`）→ 提交 → 打标签 `v<版本>` 并推送 → 打包 → 上传 Releases（`abt-<版本>.zip`、`abt-scene-skill.zip`、`frame-install.json`、`index.json` 四个都要传，少了 `index.json` 更新源就查不到新版）。先打包再打标签的话，FRAME 会装到别的版本。
+- `web/agx-lut.js` 由 `python tools/make_agx_lut.py <Blender>/<版本>/datafiles/colormanagement` 从 Blender 自带的 AgX 表生成，Blender 换了 AgX 时才需要重新生成。
 - 检查插件清单：`claude plugin validate .`
 - 改了 Blender 插件代码后重启 Blender 生效（只改了子模块时，停用再启用插件不会重新加载）。
 - 版本兼容：和 Blender 版本有关的写法（修改器参数、合成器、动画曲线、EEVEE 名字、EXR 输出）都在 `blender/abt/core.py` 里按版本分支处理，改动后要在 4.2、4.5、5.x 上各跑一遍导入和写回。
@@ -183,4 +189,4 @@ tools/package.py    打包 Blender 插件和 skill
 
 本项目以 [GPL-3.0-or-later](LICENSE) 发布：可以自由使用、修改和再发布（包括商用），但再发布修改版或包含本项目代码的作品时，也必须以 GPL 开源并附上源码。
 
-`vendor/opentype.min.mjs`（opentype.js 2.0.0）使用 MIT 许可，见 [`vendor/LICENSE-opentype.txt`](vendor/LICENSE-opentype.txt)。`assets/fonts/` 里的 DejaVu 字体使用它自己的许可，见 [`assets/fonts/LICENSE-DejaVu.txt`](assets/fonts/LICENSE-DejaVu.txt)。
+`web/agx-lut.js` 里的 AgX 色彩表取自 Blender 自带的色彩管理配置（随 Blender 以 GPL 发布）。`vendor/opentype.min.mjs`（opentype.js 2.0.0）使用 MIT 许可，见 [`vendor/LICENSE-opentype.txt`](vendor/LICENSE-opentype.txt)。`assets/fonts/` 里的 DejaVu 字体使用它自己的许可，见 [`assets/fonts/LICENSE-DejaVu.txt`](assets/fonts/LICENSE-DejaVu.txt)。

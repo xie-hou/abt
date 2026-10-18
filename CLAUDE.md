@@ -11,12 +11,12 @@ AI 写场景 JSON → three.js 播放 → Blender 插件导入、手调、实时
 ## 仓库结构
 - `blender/abt/`：Blender 扩展（core 导入导出和实时同步、bridge 给 AI 用的本机端口、frame_link 连接服务器上的 FRAME（配对、长轮询、镜头副本、写回上传；协议和 frame-studio 的 server/blender.mjs 一致）、server 预览服务器、ui 面板）
 - `components/<名>/`：效果组件，`component.json` + `three.js` + `blender.py`，两边公式必须一致
-- `web/abt-engine.js`：播放核心（浏览器预览 `web/runtime.js` 和 FRAME 共用）；`frame/`：FRAME 场景图层接口和素材库 README；`vendor/`：opentype.js（不用 three 的 TTFLoader，新版会从 CDN 加载）
+- `web/abt-engine.js`：播放核心（浏览器预览 `web/runtime.js` 和 FRAME 共用）。画面要和 Blender 对齐：色调映射查 `web/agx-lut.js`（Blender 的 AgX 表，`tools/make_agx_lut.py` 生成，四面体插值），4 倍 MSAA + 色调映射前 σ=0.4 像素的高斯滤镜（对照 EEVEE 默认 1.5 像素滤镜拟合），太阳光阴影每帧贴合场景范围；对照方法：同一帧 Blender 渲染和无头 Chrome 截图算平均像素差；`frame/`：FRAME 场景图层接口和素材库 README；`vendor/`：opentype.js（不用 three 的 TTFLoader，新版会从 CDN 加载）
 - `skills/abt-scene/`：skill，规范只在这里存一份
 - `.claude-plugin/`：仓库根目录同时是 Claude Code 插件市场和插件，改完运行 `claude plugin validate .`
 - `PROMPT.md`：给聊天 AI 的提示词，由 `<skill>/scripts/make_prompt.py` 生成，新增组件后要重新生成
-- 打包：`python tools/package.py` → `dist/abt-<版本>.zip`（Blender 插件）、`dist/abt-scene-skill.zip`（含 `frame-install.json`）、`dist/frame-install.json`（FRAME 的 AI 用一次 `material_write` 装素材库 abt，大文件是标签 `v<版本>` 的 raw.githubusercontent 网址）、`dist/frame-library/`（装好后的素材库，测试用）
-- 发布顺序：升版本号 → 提交 → 打标签并推送 → 再打包（网址指向标签，package.py 会检查标签和文件是否一致）
+- 打包：`python tools/package.py` → `dist/abt-<版本>.zip`（Blender 插件）、`dist/abt-scene-skill.zip`（含 `frame-install.json`）、`dist/frame-install.json`（FRAME 的 AI 用一次 `material_write` 装素材库 abt，大文件是标签 `v<版本>` 的 raw.githubusercontent 网址）、`dist/index.json`（Blender 扩展仓库清单，随 Release 上传；用户添加 `releases/latest/download/index.json` 作更新源后自动检查新版本）、`dist/frame-library/`（装好后的素材库，测试用）
+- 发布顺序：升版本号 → 提交 → 打标签并推送 → 再打包（网址指向标签，package.py 会检查标签和文件是否一致）→ Release 上传四个文件（插件 zip、skill zip、frame-install.json、index.json）
 - 两种项目布局：AB to T 项目（components/ + web/）和 FRAME 作品（projects/<作品>/abt/<镜头>.json，组件字体在 .materials/abt），`core.find_root` 和 validate.py 都要认
 - 测 FRAME：用 frame-studio 镜像起临时容器跑 Vite，别名 `@frame/engine`→/app/src/engine、`@materials`→模拟作品的 .materials，无头 Chrome 截图；不要动线上容器和数据
 - 测连接 FRAME（frame_link）：本机起 frame-studio 开发服务器（独立的 FRAME_HOME），Blender 用 `BLENDER_USER_RESOURCES=<临时目录>` 隔离配置、`blender --command extension build/install-file` 装插件、`xvfb-run` 起界面；插件的本机 AI 端口（bl.py）用来模拟用户在面板里的操作，FRAME 那边用 `frame call blender_*` 调工具

@@ -38,7 +38,7 @@
 |---|---|
 | `empty` | 无。常用作相机或灯光的目标点 |
 | `camera` | `lens` 焦距 mm（默认 50，常用 24–50）、`sensor` 传感器宽 mm（默认 36）、`target` 对准的对象 id |
-| `sun` | `intensity`（常用 1–5）、`color`、`target`：光从 `position` 照向 `target` |
+| `sun` | `intensity`（常用 1–5）、`color`、`target`：光从 `position` 照向 `target`，会投下阴影（图片不投影） |
 | `text` | `text`、`font`（字体路径，如 `assets/fonts/DejaVuSans-Bold.ttf`）、`size`（H 的高度，米）、`depth`（厚度，米）、`material`（材质 id）。原点在基线中点，正面朝 +Z |
 | `component` | `component`（如 `dot-galaxy@1`）、`params`（只写要改的参数，其余用默认值） |
 | `image` | `src` 图片路径、`width` / `height`（米：只写一个时另一个按图片比例，都不写时高 1 米）、`opacity` 不透明度（0–1，默认 1）、`intensity` 亮度倍数（默认 1）。原点在中心，正面朝 +Z |

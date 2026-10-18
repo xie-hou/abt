@@ -9,9 +9,10 @@ import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { Font } from 'three/addons/loaders/FontLoader.js';
 import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
+import { AGX } from './agx-lut.js';
 
 // ---------- 关键帧求值：与 Blender F 曲线一致（贝塞尔手柄 / 线性 / 常量，两端保持） ----------
 // 缓动简写 → 区间比例（出手柄 dt, 出手柄 dv, 入手柄 dt, 入手柄 dv），与 blender/abt/core.py 的 EASE 一致
@@ -44,6 +45,84 @@ export function evalTrack(keys, f) {
     return cubic(v0, v0 + r[1], v1 + l[1], v1, s);
   };
   return Array.isArray(a.v) ? a.v.map((_, j) => one(j)) : one(0);
+}
+
+// ---------- 色调映射：和 Blender 的 AgX 逐步一致 ----------
+// three 自带的 AgX 是近似公式，中间调偏亮、饱和色偏淡（最多差 40/255）。这里照 Blender 的 OCIO 配置做：
+// 线性 Rec.709 → 线性 E-Gamut → log2 → 查 Blender 的 3D 表（四面体插值，和 OCIO 一样）→ ^2.4 → sRGB。
+let agxTable = null; // 解压后的 RGBA 表，所有镜头共用
+function loadAgxTable() {
+  agxTable ??= (async () => {
+    const packed = Uint8Array.from(atob(AGX.data), (c) => c.charCodeAt(0));
+    const rgb = new Uint8Array(await new Response(new Blob([packed]).stream().pipeThrough(new DecompressionStream('deflate'))).arrayBuffer());
+    const n = AGX.size ** 3, rgba = new Uint8Array(n * 4);
+    for (let i = 0; i < n; i++) {
+      rgba[i * 4] = rgb[i * 3]; rgba[i * 4 + 1] = rgb[i * 3 + 1]; rgba[i * 4 + 2] = rgb[i * 3 + 2]; rgba[i * 4 + 3] = 255;
+    }
+    return rgba;
+  })();
+  return agxTable;
+}
+
+async function agxPass(exposure, sigma) {
+  const n = AGX.size;
+  const lut = new THREE.Data3DTexture(await loadAgxTable(), n, n, n);
+  lut.minFilter = lut.magFilter = THREE.NearestFilter; // 插值在着色器里做（四面体），不用 GPU 的三线性
+  lut.unpackAlignment = 1;
+  lut.needsUpdate = true;
+  const material = new THREE.ShaderMaterial({
+    uniforms: {
+      tDiffuse: { value: null },
+      lut: { value: lut },
+      exposure: { value: 2 ** exposure },
+      toEGamut: { value: new THREE.Matrix3().set(...AGX.toEGamut) },
+      texel: { value: new THREE.Vector2() },
+      weights: { value: [0, 1, 2, 4, 5, 8].map((d2) => (sigma > 0 ? Math.exp(-d2 / (2 * sigma * sigma)) : +(d2 === 0))) },
+    },
+    vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: `
+      precision highp sampler3D;
+      uniform sampler2D tDiffuse;
+      uniform sampler3D lut;
+      uniform float exposure;
+      uniform mat3 toEGamut;
+      uniform vec2 texel;
+      uniform float weights[6]; // 按到中心距离的平方 0、1、2、4、5、8 取的高斯权重
+      varying vec2 vUv;
+      vec3 at(ivec3 p) { return texelFetch(lut, p, 0).rgb; }
+      void main() {
+        // 像素滤镜：Blender 在色调映射前把每个像素按 1.5 像素宽的滤镜混合，小而亮的东西会显得大一圈
+        vec3 sum = vec3(0.0); float total = 0.0;
+        for (int y = -2; y <= 2; y++) for (int x = -2; x <= 2; x++) {
+          int d2 = x * x + y * y;
+          float w = weights[d2 == 0 ? 0 : d2 == 1 ? 1 : d2 == 2 ? 2 : d2 == 4 ? 3 : d2 == 5 ? 4 : 5];
+          sum += w * texture2D(tDiffuse, vUv + vec2(x, y) * texel).rgb;
+          total += w;
+        }
+        vec3 e = toEGamut * (sum / total * exposure);
+        vec3 x = clamp((log2(max(e, vec3(${2 ** AGX.lo}))) - ${AGX.lo.toFixed(8)}) / ${(AGX.hi - AGX.lo).toFixed(8)}, 0.0, 1.0) * ${(n - 1).toFixed(1)};
+        vec3 i = min(floor(x), vec3(${(n - 2).toFixed(1)}));
+        vec3 f = x - i;
+        ivec3 p = ivec3(i);
+        vec3 c0 = at(p), c1 = at(p + ivec3(1));
+        vec3 v;
+        if (f.r >= f.g) {
+          if (f.g >= f.b) v = (1.0 - f.r) * c0 + (f.r - f.g) * at(p + ivec3(1, 0, 0)) + (f.g - f.b) * at(p + ivec3(1, 1, 0)) + f.b * c1;
+          else if (f.r >= f.b) v = (1.0 - f.r) * c0 + (f.r - f.b) * at(p + ivec3(1, 0, 0)) + (f.b - f.g) * at(p + ivec3(1, 0, 1)) + f.g * c1;
+          else v = (1.0 - f.b) * c0 + (f.b - f.r) * at(p + ivec3(0, 0, 1)) + (f.r - f.g) * at(p + ivec3(1, 0, 1)) + f.g * c1;
+        } else {
+          if (f.b > f.g) v = (1.0 - f.b) * c0 + (f.b - f.g) * at(p + ivec3(0, 0, 1)) + (f.g - f.r) * at(p + ivec3(0, 1, 1)) + f.r * c1;
+          else if (f.b > f.r) v = (1.0 - f.g) * c0 + (f.g - f.b) * at(p + ivec3(0, 1, 0)) + (f.b - f.r) * at(p + ivec3(0, 1, 1)) + f.r * c1;
+          else v = (1.0 - f.g) * c0 + (f.g - f.r) * at(p + ivec3(0, 1, 0)) + (f.r - f.b) * at(p + ivec3(1, 1, 0)) + f.b * c1;
+        }
+        vec3 l = pow(clamp(v, 0.0, 1.0), vec3(2.4)); // 表里是 2.4 次方编码，还原成显示线性
+        gl_FragColor = vec4(mix(l * 12.92, 1.055 * pow(l, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, l)), 1.0); // sRGB
+      }`,
+  });
+  const pass = new ShaderPass(material);
+  const dispose = pass.dispose.bind(pass);
+  pass.dispose = () => { dispose(); lut.dispose(); };
+  return pass;
 }
 
 // ---------- 字体 ----------
@@ -170,6 +249,7 @@ async function build(doc, loaders) {
         const [w, h] = imageSize(o, (img.naturalWidth || img.width) / (img.naturalHeight || img.height));
         node.material = new THREE.MeshBasicMaterial({ map, transparent: true, side: THREE.DoubleSide });
         node.object = new THREE.Mesh(new THREE.PlaneGeometry(w, h), node.material);
+        node.object.userData.abtNoShadow = true; // Blender 里图片也不投影
         break;
       }
       default: console.warn('AB to T：three.js 暂不支持的类型', o.type); continue;
@@ -217,26 +297,71 @@ function setPath(node, path, v) {
  * 创建一个镜头。返回 { canvas, doc, frames, fps, duration, setSize, renderFrame, render, dispose }：
  * renderFrame(帧号) 按场景 JSON 的帧号画；render(秒) 从镜头第一帧起算（FRAME 用这个）。
  */
-export async function createAbtScene(doc, { width = 1920, height = 1080, quality = 'high', pixelRatio = 1, preserveDrawingBuffer = false } = {}, loaders) {
-  const renderer = new THREE.WebGLRenderer({ antialias: quality !== 'draft', preserveDrawingBuffer });
-  renderer.toneMapping = THREE.AgXToneMapping;
-  renderer.toneMappingExposure = 2 ** (doc.color?.exposure ?? 0);
-  let world;
+// pixelFilter：色调映射前的高斯滤镜 σ（像素），0.4 是对照 Blender 默认 1.5 像素滤镜的渲染拟合出来的；draft 质量不用
+export async function createAbtScene(doc, { width = 1920, height = 1080, quality = 'high', pixelRatio = 1, preserveDrawingBuffer = false, pixelFilter = 0.4 } = {}, loaders) {
+  // 画面先画进半精度缓冲（后期要用），抗锯齿得开在这个缓冲上：渲染器自己的 antialias 只管直接画到屏幕
+  const renderer = new THREE.WebGLRenderer({ antialias: false, preserveDrawingBuffer });
+  renderer.shadowMap.enabled = true; // 太阳光投影，和 Blender（EEVEE）一样
+  renderer.shadowMap.type = THREE.PCFShadowMap;
+  let world, toneMap;
   try {
     world = await build(doc, loaders);
+    toneMap = await agxPass(doc.color?.exposure ?? 0, quality === 'draft' ? 0 : pixelFilter);
   } catch (e) {
     renderer.dispose();
     renderer.forceContextLoss();
     throw e;
   }
   const { scene, camera, nodes } = world;
-  const composer = new EffectComposer(renderer);
+  const buffer = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: quality === 'draft' ? 0 : 4 });
+  const composer = new EffectComposer(renderer, buffer);
   composer.addPass(new RenderPass(scene, camera));
   const b = doc.post?.bloom;
   if (b) composer.addPass(new UnrealBloomPass(new THREE.Vector2(1, 1), b.strength ?? 1, b.radius ?? 0.5, b.threshold ?? 1));
-  composer.addPass(new OutputPass()); // 色调映射（AgX）+ sRGB 输出
+  composer.addPass(toneMap); // AgX + sRGB 输出
 
   const camNode = Object.values(nodes).find((n) => n.object === camera);
+  const suns = Object.values(nodes).filter((n) => n.def.type === 'sun').map((n) => n.object);
+  for (const sun of suns) {
+    sun.castShadow = true;
+    sun.shadow.mapSize.setScalar(quality === 'draft' ? 1024 : 4096);
+    sun.shadow.bias = -0.0002;
+    sun.shadow.normalBias = 0.01;
+  }
+  const bounds = new THREE.Box3(), part = new THREE.Box3(), view = new THREE.Matrix4();
+  const eye = new THREE.Vector3(), corner = new THREE.Vector3(), lo = new THREE.Vector3(), hi = new THREE.Vector3();
+
+  /** 每帧把太阳光的投影范围贴合到场景里的物体上（组件的实例每帧都在变）。 */
+  function fitShadows() {
+    if (!suns.length) return;
+    scene.updateMatrixWorld();
+    bounds.makeEmpty();
+    scene.traverse((o) => {
+      if (!o.isMesh) return;
+      o.receiveShadow = true;
+      o.castShadow = !o.userData.abtNoShadow;
+      if (!o.castShadow) return;
+      if (o.isInstancedMesh) o.computeBoundingBox();
+      else if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
+      bounds.union(part.copy(o.isInstancedMesh ? o.boundingBox : o.geometry.boundingBox).applyMatrix4(o.matrixWorld));
+    });
+    if (bounds.isEmpty()) return;
+    for (const sun of suns) {
+      const cam = sun.shadow.camera;
+      // 和 three 渲染投影时一样：相机放在光源位置，看向目标
+      view.lookAt(sun.getWorldPosition(eye), sun.target.getWorldPosition(target), cam.up).invert();
+      lo.setScalar(Infinity);
+      hi.setScalar(-Infinity);
+      for (let i = 0; i < 8; i++) {
+        corner.set(i & 1 ? bounds.max.x : bounds.min.x, i & 2 ? bounds.max.y : bounds.min.y, i & 4 ? bounds.max.z : bounds.min.z);
+        corner.sub(eye).applyMatrix4(view);
+        lo.min(corner); hi.max(corner);
+      }
+      const pad = 0.02 * Math.max(hi.x - lo.x, hi.y - lo.y);
+      Object.assign(cam, { left: lo.x - pad, right: hi.x + pad, bottom: lo.y - pad, top: hi.y + pad, near: -hi.z - pad, far: -lo.z + pad });
+      cam.updateProjectionMatrix();
+    }
+  }
   const [start, end] = doc.meta.frames;
   const fps = doc.meta.fps;
   const target = new THREE.Vector3();
@@ -246,6 +371,7 @@ export async function createAbtScene(doc, { width = 1920, height = 1080, quality
     renderer.setSize(w, h);
     composer.setPixelRatio(ratio);
     composer.setSize(w, h);
+    toneMap.material.uniforms.texel.value.set(1 / (w * ratio), 1 / (h * ratio));
     camera.aspect = w / h;
   }
 
@@ -267,6 +393,7 @@ export async function createAbtScene(doc, { width = 1920, height = 1080, quality
       }
     }
     camera.setFocalLength(camNode.lens ?? 50);
+    fitShadows();
     if (camNode.target) camera.lookAt(camNode.target.getWorldPosition(target));
     composer.render(0); // 0：不让后期按自己的时钟推进
   }
@@ -284,6 +411,7 @@ export async function createAbtScene(doc, { width = 1920, height = 1080, quality
     dispose() {
       scene.traverse((o) => { o.geometry?.dispose(); o.material?.map?.dispose(); o.material?.dispose?.(); });
       for (const n of Object.values(nodes)) n.comp?.dispose();
+      toneMap.dispose();
       composer.dispose();
       renderer.dispose();
       renderer.forceContextLoss();

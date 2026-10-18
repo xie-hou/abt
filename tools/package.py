@@ -3,6 +3,8 @@
   abt-scene-skill.zip    skill（含 frame-install.json），可上传到 claude.ai、FRAME 的「技能」，或解压到其他 AI 工具的 skills 目录
   frame-install.json     在 FRAME 里装素材库 abt 的 material_write 操作：文件都从 GitHub 上标签 v<版本> 下载
   frame-library/         素材库 abt 装好后的样子（播放核心、组件、字体），测试用
+  index.json             Blender 扩展仓库的清单，随 Release 上传：用户在 Blender 里添加
+                         https://github.com/xie-hou/abt/releases/latest/download/index.json 后能自动检查更新
 打包前会重新生成 PROMPT.md。frame-install.json 里的网址指向标签 v<版本>：先提交、打标签并推送，再打包发布。
 
     python tools/package.py
@@ -12,8 +14,10 @@ import os
 import re
 import runpy
 import shutil
+import hashlib
 import subprocess
 import sys
+import tomllib
 import zipfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -23,6 +27,7 @@ ADDON = os.path.join(ROOT, "blender", "abt")
 FRAME_LIB = os.path.join(DIST, "frame-library")
 FRAME_LIB_NAME = "abt"  # FRAME 里素材库的文件夹名，作品里写 @materials/abt/...
 RAW_URL = "https://raw.githubusercontent.com/xie-hou/abt"
+RELEASE_URL = "https://github.com/xie-hou/abt/releases/download"
 
 
 def add_tree(z, src, arc_prefix):
@@ -61,6 +66,7 @@ def build_frame_library(version):
         f.write(readme)
     copy("frame/frame.js", "frame.js")
     copy("web/abt-engine.js", "engine.js")
+    copy("web/agx-lut.js", "agx-lut.js")
     copy("LICENSE", "LICENSE")
     copy("vendor/opentype.min.mjs", "opentype.mjs")
     copy("vendor/LICENSE-opentype.txt", "LICENSE-opentype.txt")
@@ -148,6 +154,23 @@ def build_frame_install(version, sources):
         print(f"注意：素材库的文件和标签 {tag} 里的不一致，FRAME 会装到标签里的版本。改了文件就升版本号再打标签。")
 
 
+def build_index(version, archive):
+    """Blender 扩展仓库清单（格式同 blender --command extension server-generate），下载地址写成这一版 Release 的绝对网址：
+    清单放在 releases/latest/download/index.json，总是指向最新版。"""
+    with open(os.path.join(ADDON, "blender_manifest.toml"), "rb") as f:
+        manifest = tomllib.load(f)
+    keys = ("schema_version", "id", "name", "tagline", "version", "type", "maintainer", "license", "blender_version_min",
+            "blender_version_max", "website", "permissions", "tags", "platforms")
+    entry = {k: manifest[k] for k in keys if k in manifest}
+    with open(archive, "rb") as f:
+        data = f.read()
+    entry.update(archive_url=f"{RELEASE_URL}/v{version}/{os.path.basename(archive)}", archive_size=len(data),
+                 archive_hash="sha256:" + hashlib.sha256(data).hexdigest())
+    with open(os.path.join(DIST, "index.json"), "w", encoding="utf-8") as f:
+        json.dump({"version": "v1", "blocklist": [], "data": [entry]}, f, ensure_ascii=False, indent=2)
+        f.write("\n")
+
+
 sys.argv = ["make_prompt.py", ROOT]
 runpy.run_path(os.path.join(SKILL, "scripts", "make_prompt.py"), run_name="__main__")
 
@@ -170,5 +193,7 @@ for name, (prefix, items) in outputs.items():
                 z.write(src, arc)
         z.write(os.path.join(ROOT, "LICENSE"), os.path.join(prefix, "LICENSE"))
     print(f"dist/{name}  {os.path.getsize(path) / 1024:.0f} KB")
+build_index(version, os.path.join(DIST, f"abt-{version}.zip"))
 print(f"dist/frame-install.json  {os.path.getsize(os.path.join(DIST, 'frame-install.json')) / 1024:.1f} KB")
+print("dist/index.json  Blender 扩展仓库清单")
 print(f"dist/frame-library/  {sum(len(fs) for _, _, fs in os.walk(FRAME_LIB))} 个文件")
